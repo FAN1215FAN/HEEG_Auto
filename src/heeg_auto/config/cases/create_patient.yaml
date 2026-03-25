@@ -1,0 +1,43 @@
+﻿case_name: create_patient_smoke
+description: 使用中文动作名和混合定位方式，点击新增按钮，创建患者并在主界面验证患者姓名可见。
+
+data:
+  patient_name: autopatient${timestamp}
+  patient_id: PID_${timestamp}
+  eeg_id: EEG_${timestamp}
+  note: smoke_case_${timestamp}
+  gender: 男
+
+steps:
+  - action: 启动应用
+  - action: 单击
+    target: 新增
+  - action: 等待窗口
+    target: 创建患者
+  - action: 输入
+    target: 姓名
+    value: ${patient_name}
+  - action: 下拉选择
+    target: 性别
+    value: ${gender}
+  - action: 选择单选
+    target: 右利手
+  - action: 输入
+    target:
+      自动化ID: PatientID
+      控件类型: Edit
+      页面: dialog
+    value: ${patient_id}
+  - action: 输入
+    target: 脑电号
+    value: ${eeg_id}
+  - action: 输入
+    target: 备注
+    value: ${note}
+  - action: 单击
+    target: 确定
+  - action: 断言窗口关闭
+    target: 创建患者
+  - action: 断言文本可见
+    text: ${patient_name}
+    timeout: 20

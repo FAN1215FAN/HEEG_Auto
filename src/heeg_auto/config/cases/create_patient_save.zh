@@ -1,0 +1,20 @@
+﻿用例 create_patient_line_smoke
+说明 使用中文行式脚本做最小原型，演示测试同事更接近手写步骤的搭建方式。
+变量 patient_name autopatient${timestamp}
+变量 patient_id PID_${timestamp}
+变量 eeg_id EEG_${timestamp}
+变量 note smoke_case_${timestamp}
+变量 gender 男
+
+启动应用
+单击 新增
+等待窗口 创建患者
+输入 姓名 ${patient_name}
+下拉选择 性别 ${gender}
+选择单选 右利手
+输入 病历号 ${patient_id}
+输入 脑电号 ${eeg_id}
+输入 备注 ${note}
+单击 确定
+断言窗口关闭 创建患者
+断言文本可见 ${patient_name}

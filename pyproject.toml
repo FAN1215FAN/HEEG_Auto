@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-q --html=artifacts/reports/pytest-report.html --self-contained-html"
+testpaths = ["tests"]
+markers = [
+  "smoke: marks smoke tests",
+]
