@@ -25,6 +25,7 @@ def generate_reports(result: dict[str, Any]) -> dict[str, str]:
     json_path = REPORT_DIR / f"{base_name}.json"
     docx_path = REPORT_DIR / f"{base_name}.docx"
 
+    # 先把运行结果整理成统一 payload，再分别输出 JSON 和 Word，避免两份报告口径不一致。
     payload = _build_report_payload(result=result, json_path=json_path, docx_path=docx_path)
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     _write_docx_report(payload, docx_path)
@@ -78,6 +79,7 @@ def _pick_body_screenshots(screenshot_paths: list[str]) -> list[str]:
             if len(preferred) >= 2:
                 break
 
+    # Word 正文只保留两张高价值失败截图，控制报告体量，其余截图仍保留在 JSON 和附录中。
     return preferred[:2]
 
 
@@ -171,6 +173,7 @@ def _add_steps_table(document: Document, steps: list[dict[str, Any]]) -> None:
         row[0].text = str(step.get("index", ""))
         row[1].text = step.get("action", "") or "-"
         row[2].text = step.get("target", "") or "-"
+        # 参数和耗时放在同一列，兼顾阅读紧凑性和排障时的基本信息量。
         row[3].text = f"{step.get('parameters', '-') }\n耗时：{step.get('duration_seconds', 0)} 秒"
         row[4].text = step.get("status", "") or "-"
         row[5].text = step.get("error_summary", "") or "-"

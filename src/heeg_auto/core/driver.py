@@ -41,6 +41,7 @@ class UIADriver:
         last_error = None
         while time.time() < deadline:
             try:
+                # 首版优先通过“可见 + 有标题 + 控件类型为 Window”识别主窗口，兼顾稳定性和简单性。
                 window_spec = self.app.top_window()
                 window = window_spec.wrapper_object()
                 title = (window.window_text() or "").strip()
@@ -96,6 +97,7 @@ class UIADriver:
         timestamp: str,
         step_index: int | None = None,
     ) -> list[Path]:
+        # 失败时尽量同时保留全屏、活动窗口和主窗口三类证据，兼容单屏和扩展屏场景。
         saved_paths: list[Path] = []
         case_part = self._safe_fragment(case_name)
         step_part = self._safe_fragment(step_name)

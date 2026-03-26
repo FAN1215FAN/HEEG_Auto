@@ -8,6 +8,7 @@ HEEG_Auto/
 │  ├─ reports/
 │  └─ screenshots/
 ├─ docs/
+│  └─ project_briefing.md
 ├─ scripts/
 ├─ src/
 │  └─ heeg_auto/

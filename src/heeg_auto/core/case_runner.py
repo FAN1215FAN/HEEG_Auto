@@ -43,6 +43,7 @@ class CaseRunner:
                 current_step_index = index
                 step_started_at = datetime.now()
                 step_started_perf = perf_counter()
+                # 每一步都记录动作、参数、耗时和结果，后续统一用于 JSON/Word 报告输出。
                 step_record: dict[str, Any] = {
                     "index": index,
                     "action": "",
@@ -70,6 +71,7 @@ class CaseRunner:
                     action(**step)
                     step_record["status"] = "PASS"
                 except Exception as step_error:
+                    # 不在这里吞异常，而是先把当前步骤记成 FAIL，再交给外层统一截图和生成失败结果。
                     step_record["status"] = "FAIL"
                     step_record["error_summary"] = str(step_error)
                     if not step_record["action"] and isinstance(raw_step, dict):
@@ -177,6 +179,7 @@ class CaseRunner:
         raise ValueError(f"Unsupported case file extension: {case_file.suffix}")
 
     def _build_context(self, data: dict) -> dict:
+        # timestamp 作为全局根变量，后续可被患者名、病历号、脑电号等多个字段复用。
         context = {"timestamp": datetime.now().strftime("%Y%m%d%H%M%S")}
         for key, value in data.items():
             context[key] = self._resolve_text(value, context)
@@ -198,6 +201,7 @@ class CaseRunner:
         def replace(match):
             key = match.group(1)
             if key not in context:
+                # 这里给出面向测试同事的直白报错，避免把字面量误写成变量引用时难以定位。
                 raise KeyError(
                     f"未定义变量：{key}。如果你想输入固定文本，请直接写文本本身，不要加 ${{}}。"
                     f"例如：输入 姓名 张三；只有在引用变量时才写成 ${{patient_name}}。"

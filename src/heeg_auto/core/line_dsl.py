@@ -5,6 +5,7 @@ import shlex
 
 class LineDslCompiler:
     def compile_to_case(self, script_content: str, default_case_name: str) -> dict:
+        # 中文行式脚本是面向测试同事的低门槛表达，最终仍编译成统一动作结构供执行器使用。
         case_name = default_case_name
         description = "使用中文行式脚本描述的自动化用例。"
         data: dict[str, str] = {}
@@ -52,6 +53,7 @@ class LineDslCompiler:
             self._ensure_exact_args(tokens, 1, line_number, "启动应用 不需要参数")
             return {"action": action}
         if action in {"单击", "等待窗口", "等待可见", "断言存在", "选择单选", "断言窗口关闭"}:
+            # 单参数动作统一编译为 target 结构，后续由执行层再解析成具体 locator。
             self._ensure_exact_args(tokens, 2, line_number, f"{action} 需要 1 个参数")
             return {"action": action, "target": tokens[1]}
         if action in {"输入", "下拉选择"}:
