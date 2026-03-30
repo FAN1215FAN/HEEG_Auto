@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 
@@ -47,16 +47,23 @@ class ActionExecutor:
         return ACTION_ALIASES[action_name]
 
     def resolve_target(self, target, default_page: str | None = None) -> dict:
-        # 统一把中文别名、AutomationId 写法和手写 locator 转成底层一致的定位结构。
         if default_page is None:
             default_page = "dialog" if self.dialog_page is not None else "main"
         locator = resolve_locator(target, default_page=default_page)
         self.logger.info("Resolved target %s -> %s", target, locator)
         return locator
 
-    def launch_app(self, **_: dict) -> None:
-        self.driver.launch()
+    def ensure_session(self, session_policy: str = "自动") -> str:
+        if session_policy == "复用已有应用":
+            mode = self.driver.reuse_existing()
+        else:
+            mode = self.driver.launch()
         self.main_page = MainPage(driver=self.driver, logger=self.logger)
+        self.dialog_page = None
+        return mode
+
+    def launch_app(self, **_: dict) -> str:
+        return self.ensure_session("自动")
 
     def click(self, target, **_: dict) -> None:
         locator = self.resolve_target(target)
@@ -66,7 +73,6 @@ class ActionExecutor:
     def wait_for_window(self, target, timeout: int = DEFAULT_TIMEOUT, **_: dict) -> None:
         locator = self.resolve_target(target, default_page="main")
         if locator.get("title"):
-            # “创建患者”当前是主窗口中的业务区域，不是独立顶层窗口，因此用标题文本作为出现标记。
             self.dialog_page = CreatePatientDialogPage(driver=self.driver, logger=self.logger)
             self.dialog_page.wait_open(marker_text=locator["title"], timeout=timeout)
             return
@@ -100,7 +106,6 @@ class ActionExecutor:
     def assert_window_closed(self, target, timeout: int = DEFAULT_TIMEOUT, **_: dict) -> None:
         locator = self.resolve_target(target, default_page="main")
         if locator.get("title"):
-            # 首版通过“标题文本消失”判断业务弹层关闭，避免依赖当前不稳定的顶层窗口结构。
             self.main_page.assert_text_not_visible(locator["title"], timeout=timeout)
             self.dialog_page = None
             return
@@ -118,7 +123,6 @@ class ActionExecutor:
         page_name = locator.get("page")
         if page_name == "dialog":
             if self.dialog_page is None:
-                # 当脚本先写“输入/选择”再写“等待窗口”时，这里补一次惰性初始化，降低步骤顺序耦合。
                 self.dialog_page = CreatePatientDialogPage(driver=self.driver, logger=self.logger)
                 self.dialog_page.wait_open()
             return self.dialog_page

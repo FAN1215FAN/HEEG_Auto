@@ -1,0 +1,17 @@
+case_id: TC_PATIENT_001
+case_name: 新建患者_正常创建
+tags:
+  - smoke
+  - patient
+module_chain:
+  - module: patient.create
+    params:
+      name: 张三
+      gender: 女
+      habit_hand: right_hand_radio
+      patient_id: PID_001
+      eeg_id: EEG_001
+      note: 正向样板
+      expect_status: PASS
+expect:
+  status: PASS

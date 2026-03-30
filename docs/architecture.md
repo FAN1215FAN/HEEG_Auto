@@ -1,56 +1,111 @@
-﻿# 架构设计
+# 架构设计
 
-## 分层结构
+## 当前主架构
 
-- `config`：保存应用路径、产物目录、控件定位信息、中文别名、YAML 用例和中文行式脚本
-- `core`：提供驱动、基础页面能力、动作执行器、日志、场景运行器、中文行式脚本编译器和报告生成器
-- `pages`：提供主界面与创建患者弹窗的页面对象封装
-- `tests`：通过 `pytest` 运行冒烟测试并在失败时自动截图
-- `tools/inspectors`：导出控件树，辅助补充和校验 AutomationId
+项目当前按以下 5 层组织：
 
-## 首版执行流
+- 动作层：`src/heeg_auto/actions`
+- 元素层：`src/heeg_auto/elements`
+- 大模块层：`src/heeg_auto/modules`
+- 用例层：`src/heeg_auto/cases`
+- pytest 执行层：`tests` + `src/heeg_auto/runner`
 
-1. `CaseRunner` 读取 `.yaml/.yml` 或 `.zh/.txt/.steps`
-2. 如果输入是中文行式脚本，先用 `LineDslCompiler` 编译成统一的动作结构
-3. 动态生成唯一患者名、病历号、脑电号
-4. `UIADriver` 启动 exe 并连接主窗口
-5. `ActionExecutor` 将中文动作名或英文动作名解析为实际执行方法
-6. 执行器把 `target` 解析成具体定位信息，再顺序执行点击、输入、选择、断言动作
-7. `CaseRunner` 将步骤执行结果、环境信息、错误信息和失败截图整理成统一结果对象
-8. `run_demo.py` 调用 `reporting` 模块，在每次运行后自动生成同名 JSON 报告和 Word 报告
+## 各层职责
 
-## 动作与定位策略
+### 动作层
 
-- 动作名同时支持英文和中文，例如 `click` / `单击`、`input_text` / `输入`
-- 目标支持三种写法：预定义控件键、中文控件别名、手写定位对象
-- 手写定位对象同时支持英文键和中文键，例如 `automation_id` / `自动化ID`
-- 新增中文行式脚本原型，允许用“一行一个动作”的方式描述常见流程
-- 优先使用 `AutomationId + ControlType`
-- “创建患者”按主窗口内嵌容器处理，而不是独立顶层窗口
-- 顶部标题 `创建患者` 作为弹窗出现/关闭的可见性标记
-- `确定`/`关闭` 按钮首版使用标题文本定位，避免当前 UIA 树中按钮 `AutomationId` 不稳定导致误判
-- 主界面患者列表断言采用“唯一患者名出现在主窗口文本树中”的轻量策略
+职责：
 
-## 稳定性策略
+- 固定自然语言动作与代码实现映射
+- 保证自然语言到代码的映射长期稳定
 
-- 所有动作使用统一显式等待和动作间隔
-- 测试数据按时间戳自动生成，避免患者重名干扰
-- 日期控件第一版不处理，避免为复杂控件增加不必要不稳定性
-- 失败截图统一保存到 `artifacts/screenshots`
-- 报告正文默认只插入失败截图，避免随着测试内容增多导致 Word 体量快速膨胀
+当前位置：
 
-## 报告策略
+- `src/heeg_auto/actions/registry.py`
+- `src/heeg_auto/core/actions.py`
 
-- 每次 `run_demo.py` 执行后，自动在 `artifacts/reports` 生成一组同名 `.json/.docx` 文件
-- Word 报告全中文，面向领导、测试和研发统一阅读
-- 报告正文包含执行摘要、基本信息、用例结果、步骤明细、失败信息和两张失败截图
-- 完整错误堆栈和全部失败截图路径保留在附录和 JSON 中，方便后续排查与系统集成
+### 元素层
 
-## 扩展方向
+职责：
 
-- 增加更多通用动作，如双击、快捷键、等待消失、文本读取
-- 将中文行式脚本继续扩展为更贴近测试同事习惯的低门槛表现形式
-- 将更多业务窗口控件补充到定位清单
-- 将列表断言从文本搜索升级为表格行级断言
-- 在后续阶段再考虑低代码编排或流程管理能力
-- 当用例规模扩大后，再考虑批量汇总报告和报告模板美化
+- 固定每个大模块内部使用的元素清单
+- 沉淀 AutomationId、标题、控件类型等定位信息
+
+当前位置：
+
+- `src/heeg_auto/elements/patient/create_patient.yaml`
+- `src/heeg_auto/elements/loader.py`
+
+### 大模块层
+
+职责：
+
+- 定义一个完整可复用的业务模块
+- 接收参数
+- 内部组合动作与元素完成业务执行
+
+当前位置：
+
+- `src/heeg_auto/modules/patient/create_patient.yaml`
+- `src/heeg_auto/modules/registry.py`
+- `src/heeg_auto/modules/loader.py`
+
+### 用例层
+
+职责：
+
+- 定义完整测试场景
+- 一个 case 里可以串多个大模块
+- 用例必须有编号
+
+当前位置：
+
+- `src/heeg_auto/cases/patient/TC_PATIENT_001.yaml`
+- `src/heeg_auto/cases/patient/TC_PATIENT_002.yaml`
+
+### pytest 执行层
+
+职责：
+
+- 收集 case
+- 收集模块
+- 展示 case 与模块链
+- 筛选标签
+- 执行真实 UI 套件
+- 输出 HTML 报告
+
+当前位置：
+
+- `tests/smoke/test_patient_cases.py`
+- `tests/test_module_loader.py`
+- `tests/smoke/test_patient_ui_flow.py`
+- `tests/conftest.py`
+
+## 当前执行流
+
+1. `run_demo.py` 读取默认正式 case
+2. `FormalCaseLoader` 把中文字段转成内部稳定字段
+3. `FormalCaseRunner` 负责驱动应用会话与模块链执行
+4. `ModuleRunner` 读取大模块定义并执行步骤与断言
+5. `reporting.py` 输出 JSON / Word 报告
+6. `pytest` 收集和展示 case / 模块，并提供批量执行入口
+
+## 关键设计约束
+
+- 正式用例优先中文字段，内部模块标识保持稳定 ASCII
+- 一个 case 可以串多个大模块
+- 大模块可编辑，底层执行逻辑稳定
+- 动作、元素、模块与代码的对应关系必须文档化并持续更新
+- 成功报告精简，故障报告展开
+
+## 当前样板模块
+
+- 大模块：`新建患者` -> `patient.create`
+- 正向用例：`TC_PATIENT_001`
+- 负向用例：`TC_PATIENT_002`
+
+## 当前真实联调状态
+
+- `python run_demo.py` 已跑通
+- `python -m pytest` 已通过
+- `python -m pytest -m ui --run-ui` 已能连续执行两个 case，并复用同一应用会话

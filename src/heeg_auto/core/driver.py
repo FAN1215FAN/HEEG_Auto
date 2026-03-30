@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import time
 from pathlib import Path
@@ -24,24 +24,58 @@ class UIADriver:
         self.main_window = None
         self.main_window_wrapper = None
 
-    def launch(self):
+    def launch(self) -> str:
         ensure_artifact_dirs()
+        if self.app and self.main_window_wrapper is not None:
+            self.logger.info("Reuse existing application session.")
+            return "reuse"
+
+        attached = self._attach_existing()
+        if attached:
+            self.logger.info("Attached to existing application session.")
+            return "attach"
+
         self.logger.info("Launching application: %s", APP_PATH)
         self.app = Application(backend=UIA_BACKEND).start(str(APP_PATH))
         self.app.wait_cpu_usage_lower(threshold=5, timeout=MAIN_WINDOW_TIMEOUT)
+        self._bind_main_window()
+        self.main_window_wrapper.set_focus()
+        time.sleep(ACTION_PAUSE_SECONDS)
+        return "launch"
+    def reuse_existing(self) -> str:
+        ensure_artifact_dirs()
+        if self.app and self.main_window_wrapper is not None:
+            self.logger.info("Reuse existing application session.")
+            return "reuse"
+        attached = self._attach_existing()
+        if attached:
+            self.logger.info("Attached to existing application session.")
+            return "attach"
+        raise RuntimeError("????????????????????????????")
+
+    def _attach_existing(self) -> bool:
+        try:
+            self.app = Application(backend=UIA_BACKEND).connect(path=str(APP_PATH), timeout=5)
+            self._bind_main_window()
+            self.main_window_wrapper.set_focus()
+            time.sleep(ACTION_PAUSE_SECONDS)
+            return True
+        except Exception:
+            self.app = None
+            self.main_window = None
+            self.main_window_wrapper = None
+            return False
+
+    def _bind_main_window(self) -> None:
         self.main_window = self._wait_for_main_window()
         self.main_window.wait("ready", timeout=MAIN_WINDOW_TIMEOUT)
         self.main_window_wrapper = self.main_window.wrapper_object()
-        self.main_window_wrapper.set_focus()
-        time.sleep(ACTION_PAUSE_SECONDS)
-        return self.main_window
 
     def _wait_for_main_window(self):
         deadline = time.time() + MAIN_WINDOW_TIMEOUT
         last_error = None
         while time.time() < deadline:
             try:
-                # 首版优先通过“可见 + 有标题 + 控件类型为 Window”识别主窗口，兼顾稳定性和简单性。
                 window_spec = self.app.top_window()
                 window = window_spec.wrapper_object()
                 title = (window.window_text() or "").strip()
@@ -97,7 +131,6 @@ class UIADriver:
         timestamp: str,
         step_index: int | None = None,
     ) -> list[Path]:
-        # 失败时尽量同时保留全屏、活动窗口和主窗口三类证据，兼容单屏和扩展屏场景。
         saved_paths: list[Path] = []
         case_part = self._safe_fragment(case_name)
         step_part = self._safe_fragment(step_name)
@@ -142,3 +175,22 @@ class UIADriver:
             self.top_window().close()
         except Exception:  # pragma: no cover
             pass
+
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            try:
+                if not self.app.is_process_running():
+                    break
+            except Exception:
+                break
+            time.sleep(0.5)
+        else:
+            try:
+                self.app.kill()
+                self.logger.info("Application did not exit gracefully; forced kill issued.")
+            except Exception:  # pragma: no cover
+                pass
+
+        self.app = None
+        self.main_window = None
+        self.main_window_wrapper = None

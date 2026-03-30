@@ -1,41 +1,43 @@
-﻿# 会话结论
+# 会话结论
 
 ## 已达成一致
 
-- 不做影刀式平台首版，先做轻量且稳定的 WPF 测试自动化工程
-- 编码语言固定为 Python，不切换语言
-- 使用 `windows-uia-project-standard` 技能创建标准化工程
-- 用 `YAML` 作为测试步骤描述格式
-- 第一版目标场景是“主界面点击新增 -> 创建患者 -> 主界面验证新增成功”
-- 出生日期控件第一版不处理
-- 患者名采用时间戳生成，避免重复数据干扰
-- 动作名需要支持中文
-- 目标既支持 `AutomationId`，也支持可见文本和中文别名
-- YAML 对普通测试同事仍有门槛，因此需要验证更低门槛的表现形式
-- 当前接受先做中文行式脚本最小原型，不做图形化拖拽
-- 当前接受在每次运行后自动生成全中文 JSON 报告和 Word 报告，放在同一目录并使用相同名称
-- 报告正文暂时只放失败截图，不放成功截图
-- 当前需要新增一份面向汇报场景的项目讲解报告，并补充功能代码定位说明与关键代码注释
+- 默认开发工具切换为 VS Code
+- 放弃误听的 `PyText` 方向，保留并围绕 `pytest` 重构测试结构
+- 正式用例不再平铺在 `.zh` 文件中
+- 对外模型收敛为 5 层：动作、元素、大模块、用例、pytest 执行层
+- 放弃“小模块”作为公开架构层
+- 一个 case 可以串多个大模块
+- 大模块采用“可编辑定义文件 + 稳定执行实现”的组合
+- 动作、元素清单以及自然语言与代码映射必须保留并持续更新
+- 报告改为“成功摘要 + 故障详情”
 
-## 本次输入的关键信息
+## 本阶段完成内容
 
-- 应用路径：`F:\neuracle\HEEG_project\HEEG\NSH-R\Neuracle.EEGRecorder.Viewer.HEEG.exe`
-- 应用无登录流程
-- 已拿到新增按钮及创建患者弹窗主要控件的 AutomationId 和 ControlType
-- 验证标准接受“点击确认后弹窗关闭，并在主界面看到新增患者信息”
-- 报告面向领导、测试和研发统一阅读
-- 单次运行生成一份报告
-- 报告文件命名形如 `HEEG_Auto_Report_20260325_103000.docx`
+- `pytest` 已经可以直接收集并展示正式 case：`用例编号｜用例名称｜模块链`
+- `pytest` 已经可以直接收集并展示注册的大模块：`模块标识｜模块名称`
+- 真实 UI 套件已改成“单次启动 / 连接 + 连续复用同一应用会话”
+- 正向 case `TC_PATIENT_001` 已跑通
+- 负向 case `TC_PATIENT_002` 已跑通
+- `python -m pytest` 已通过
+- `python -m pytest -m ui --run-ui` 已通过
+- 历史原型已归档到 `src/heeg_auto/legacy/`
 
-## 当前交付方向
+## 当前主线结构
 
-- 标准工程骨架
-- 通用动作
-- 中文动作名和中文目标别名
-- 中文行式脚本最小原型
-- YAML 用例
-- pytest 测试
-- HTML 报告与失败截图
-- JSON 报告与 Word 报告
-- 控件树导出脚本
-- 项目讲解报告
+- 动作映射：`src/heeg_auto/actions/registry.py`
+- 元素清单：`src/heeg_auto/elements/patient/create_patient.yaml`
+- 大模块定义：`src/heeg_auto/modules/patient/create_patient.yaml`
+- 模块注册：`src/heeg_auto/modules/registry.py`
+- 正式 case：`src/heeg_auto/cases/patient/TC_PATIENT_001.yaml`、`TC_PATIENT_002.yaml`
+- 正式 runner：`src/heeg_auto/runner/formal_case_runner.py`
+- pytest case 入口：`tests/smoke/test_patient_cases.py`
+- pytest UI 入口：`tests/smoke/test_patient_ui_flow.py`
+
+## 当前验证结果
+
+- `python -m compileall src run_demo.py tests` 通过
+- `python -m pytest` 通过，当前 `7 passed, 2 skipped`
+- `python run_demo.py` 通过
+- `python -m pytest -m ui --run-ui` 通过
+- 新增正式 case 的 `会话策略` 设计：首个 case 可使用 `自动`，后续连续 case 可使用 `复用已有应用`，避免重复启动软件

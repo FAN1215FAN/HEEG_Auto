@@ -1,4 +1,4 @@
-﻿# 当前目录树
+# 当前目录树
 
 ```text
 HEEG_Auto/
@@ -8,16 +8,37 @@ HEEG_Auto/
 │  ├─ reports/
 │  └─ screenshots/
 ├─ docs/
-│  └─ project_briefing.md
-├─ scripts/
+│  ├─ examples/
+│  ├─ templates/
+│  ├─ architecture.md
+│  ├─ control_inventory.md
+│  ├─ mapping_guide.md
+│  └─ run_guide.md
 ├─ src/
 │  └─ heeg_auto/
+│     ├─ actions/
+│     ├─ cases/
+│     │  └─ patient/
 │     ├─ config/
-│     │  └─ cases/
 │     ├─ core/
-│     │  └─ reporting.py
-│     └─ pages/
+│     ├─ elements/
+│     │  └─ patient/
+│     ├─ legacy/
+│     │  ├─ phase1_cases/
+│     │  └─ phase2_transition/
+│     ├─ modules/
+│     │  └─ patient/
+│     ├─ pages/
+│     └─ runner/
 ├─ tests/
+│  ├─ smoke/
+│  ├─ support/
+│  ├─ conftest.py
+│  ├─ test_case_loader.py
+│  ├─ test_elements_loader.py
+│  ├─ test_module_loader.py
+│  ├─ test_reporting.py
+│  └─ test_runtime_locator_sanitization.py
 ├─ tools/
 │  └─ inspectors/
 ├─ CHANGELOG.md
@@ -28,6 +49,9 @@ HEEG_Auto/
 └─ run_inspector.py
 ```
 
-`src/heeg_auto/config/cases/` 当前同时包含 `create_patient.yaml` 和 `create_patient.zh`。
+说明：
 
-`artifacts/reports/` 当前同时用于保存 `pytest-report.html` 以及单次运行生成的 `.json/.docx` 报告。
+- `src/heeg_auto/cases/` 是当前正式用例主目录。
+- `src/heeg_auto/modules/` 是当前大模块定义主目录。
+- `src/heeg_auto/legacy/` 用于存放已退出主线的历史原型。
+- `tests/smoke/` 当前直接体现 pytest 的 case 视图和 UI 套件视图。

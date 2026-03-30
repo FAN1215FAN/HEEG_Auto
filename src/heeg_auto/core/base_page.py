@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 import time
@@ -16,7 +16,12 @@ class BasePage:
 
     @staticmethod
     def _criteria(locator: dict) -> dict:
-        criteria = {key: value for key, value in locator.items() if key not in {"page"}}
+        # 元素清单里允许保留 label 等说明性字段，但运行时只把真正的定位字段传给 UIA。
+        criteria = {
+            key: value
+            for key, value in locator.items()
+            if key not in {"page", "label", "module", "module_label", "description"}
+        }
         if "automation_id" in criteria:
             criteria["auto_id"] = criteria.pop("automation_id")
         return criteria
@@ -102,32 +107,83 @@ class BasePage:
         raise TimeoutError(f"Window still exists after {timeout}s: {criteria}")
 
     @staticmethod
-    def _iter_visible_texts(descendants):
-        for descendant in descendants:
+    def _visible_text_from_wrapper(wrapper) -> str:
+        try:
+            if hasattr(wrapper, "is_visible") and not wrapper.is_visible():
+                return ""
+        except Exception:
+            return ""
+        for getter in (
+            lambda: wrapper.window_text(),
+            lambda: getattr(wrapper.element_info, "name", ""),
+        ):
             try:
-                if hasattr(descendant, "is_visible") and not descendant.is_visible():
-                    continue
-            except Exception:
-                continue
-            try:
-                candidate = descendant.window_text()
+                candidate = getter()
             except Exception:
                 candidate = ""
             if candidate:
-                yield candidate
+                return candidate
+        return ""
+
+    def _text_search_roots(self):
+        roots = []
+        if self.driver.main_window_wrapper is not None:
+            roots.append(self.driver.main_window_wrapper)
+        for getter in (
+            lambda: self.driver.top_window(),
+            lambda: self.driver.desktop.top_window(),
+        ):
+            try:
+                candidate = getter()
+                if hasattr(candidate, "wrapper_object"):
+                    candidate = candidate.wrapper_object()
+            except Exception:
+                candidate = None
+            if candidate is None:
+                continue
+            candidate_handle = getattr(candidate, "handle", None)
+            if any(getattr(root, "handle", None) == candidate_handle for root in roots):
+                continue
+            roots.append(candidate)
+        return roots
+
+    def _iter_visible_texts_from_roots(self):
+        seen = set()
+        for root in self._text_search_roots():
+            root_handle = getattr(root, "handle", None)
+            if root_handle in seen:
+                continue
+            seen.add(root_handle)
+            root_text = self._visible_text_from_wrapper(root)
+            if root_text:
+                yield root_text
+            try:
+                descendants = root.descendants()
+            except Exception:
+                descendants = []
+            for descendant in descendants:
+                candidate = self._visible_text_from_wrapper(descendant)
+                if candidate:
+                    yield candidate
 
     def assert_text_visible(self, text: str, timeout: int = DEFAULT_TIMEOUT) -> None:
         deadline = time.time() + timeout
         pattern = re.compile(re.escape(text))
 
         while time.time() < deadline:
-            for candidate in self._iter_visible_texts(self.driver.main_window_wrapper.descendants()):
+            for candidate in self._iter_visible_texts_from_roots():
                 if pattern.search(candidate):
                     self.logger.info("Found expected text: %s", text)
                     return
             time.sleep(0.5)
 
-        raise AssertionError(f"Text not visible in main window within {timeout}s: {text}")
+        samples = []
+        for candidate in self._iter_visible_texts_from_roots():
+            if candidate not in samples:
+                samples.append(candidate)
+            if len(samples) >= 20:
+                break
+        raise AssertionError(f"Text not visible in current app windows within {timeout}s: {text}. Visible samples: {samples}")
 
     def assert_text_not_visible(self, text: str, timeout: int = DEFAULT_TIMEOUT) -> None:
         deadline = time.time() + timeout
@@ -135,7 +191,7 @@ class BasePage:
 
         while time.time() < deadline:
             found = False
-            for candidate in self._iter_visible_texts(self.driver.main_window_wrapper.descendants()):
+            for candidate in self._iter_visible_texts_from_roots():
                 if pattern.search(candidate):
                     found = True
                     break
@@ -144,4 +200,4 @@ class BasePage:
                 return
             time.sleep(0.5)
 
-        raise AssertionError(f"Text still visible in main window after {timeout}s: {text}")
+        raise AssertionError(f"Text still visible in current app windows after {timeout}s: {text}")

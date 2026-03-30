@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 
@@ -11,6 +11,15 @@ from heeg_auto.core.logger import build_logger
 
 def pytest_configure(config):
     ensure_artifact_dirs()
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-ui",
+        action="store_true",
+        default=False,
+        help="运行真实桌面 UI 自动化用例",
+    )
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
