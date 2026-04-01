@@ -6,6 +6,8 @@ markers = [
   "smoke: marks smoke tests",
   "regression: marks regression tests",
   "patient: marks patient-related tests",
+  "device: marks device-setting-related tests",
   "impedance: marks impedance-related tests",
+  "start: marks startup and system-module-related tests",
   "ui: marks real desktop UI smoke tests",
 ]

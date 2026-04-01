@@ -21,9 +21,28 @@ items:
     automation_id: PatientGender
     control_type: ComboBox
   right_hand_radio:
-    label: 右利手单选
+    label: 右手
+    aliases:
+      - 右利手
     page: dialog
     automation_id: PatientRightHand
+    control_type: RadioButton
+  left_hand_radio:
+    label: 左手
+    aliases:
+      - 左利手
+    page: dialog
+    automation_id: PatienLeftHand
+    control_type: RadioButton
+  no_habit_hand_radio:
+    label: 无利手
+    page: dialog
+    automation_id: PatienNoHabitHand
+    control_type: RadioButton
+  pair_hand_radio:
+    label: 双利手
+    page: dialog
+    automation_id: PatientPairHand
     control_type: RadioButton
   patient_id_input:
     label: 病历号输入框

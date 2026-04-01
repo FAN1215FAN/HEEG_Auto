@@ -25,6 +25,10 @@ STEP_KEY_ALIASES = {
     "超时": "timeout",
     "文件名": "file_name",
     "可选": "optional",
+    "条件参数": "when_param",
+    "exe路径": "exe_path",
+    "软件路径": "exe_path",
+    "会话模式": "session_mode",
 }
 
 
@@ -36,13 +40,12 @@ class ModuleStore:
     def load(self, module_id: str) -> dict:
         if module_id not in self.file_registry:
             raise KeyError(f"未注册模块定义：{module_id}")
-
         payload = yaml.safe_load(self.file_registry[module_id].read_text(encoding="utf-8"))
         normalized = {MODULE_KEY_ALIASES.get(key, key): value for key, value in payload.items()}
         return {
             "module_id": normalized.get("module_id", module_id),
             "module_label": normalized.get("module_label", module_id),
-            "element_module": normalized.get("element_module", module_id),
+            "element_module": normalized.get("element_module"),
             "parameter_definitions": list(normalized.get("parameter_definitions", [])),
             "steps": [self._normalize_step(step) for step in normalized.get("steps", [])],
             "assertions": {

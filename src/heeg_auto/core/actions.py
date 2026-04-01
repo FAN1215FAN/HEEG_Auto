@@ -7,7 +7,6 @@ from heeg_auto.config.settings import DEFAULT_TIMEOUT
 from heeg_auto.pages.create_patient_dialog import CreatePatientDialogPage
 from heeg_auto.pages.main_page import MainPage
 
-
 ACTION_ALIASES = {
     "launch_app": "launch_app",
     "启动应用": "launch_app",
@@ -33,7 +32,6 @@ ACTION_ALIASES = {
     "截图": "screenshot",
 }
 
-
 class ActionExecutor:
     def __init__(self, driver, logger) -> None:
         self.driver = driver
@@ -53,17 +51,17 @@ class ActionExecutor:
         self.logger.info("Resolved target %s -> %s", target, locator)
         return locator
 
-    def ensure_session(self, session_policy: str = "自动") -> str:
-        if session_policy == "复用已有应用":
-            mode = self.driver.reuse_existing()
+    def ensure_session(self, exe_path: str | None = None, session_mode: str = "自动") -> str:
+        if session_mode == "复用已有应用":
+            mode = self.driver.reuse_existing(exe_path=exe_path)
         else:
-            mode = self.driver.launch()
+            mode = self.driver.launch(exe_path=exe_path)
         self.main_page = MainPage(driver=self.driver, logger=self.logger)
         self.dialog_page = None
         return mode
 
-    def launch_app(self, **_: dict) -> str:
-        return self.ensure_session("自动")
+    def launch_app(self, exe_path: str | None = None, session_mode: str = "自动", **_: dict) -> str:
+        return self.ensure_session(exe_path=exe_path, session_mode=session_mode)
 
     def click(self, target, **_: dict) -> None:
         locator = self.resolve_target(target)
@@ -106,7 +104,10 @@ class ActionExecutor:
     def assert_window_closed(self, target, timeout: int = DEFAULT_TIMEOUT, **_: dict) -> None:
         locator = self.resolve_target(target, default_page="main")
         if locator.get("title"):
-            self.main_page.assert_text_not_visible(locator["title"], timeout=timeout)
+            if self.dialog_page is not None and getattr(self.dialog_page, "root", None) is not None:
+                self.dialog_page.wait_closed(timeout=timeout)
+            else:
+                self.main_page.assert_text_not_visible(locator["title"], timeout=timeout)
             self.dialog_page = None
             return
         self.main_page.wait_closed(locator, timeout=timeout)

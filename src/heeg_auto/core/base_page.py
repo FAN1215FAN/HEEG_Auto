@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 import time
@@ -20,7 +20,7 @@ class BasePage:
         criteria = {
             key: value
             for key, value in locator.items()
-            if key not in {"page", "label", "module", "module_label", "description"}
+            if key not in {"page", "label", "module", "module_label", "description", "aliases"}
         }
         if "automation_id" in criteria:
             criteria["auto_id"] = criteria.pop("automation_id")
@@ -34,22 +34,110 @@ class BasePage:
             return None
         return self.driver.main_window
 
+    def _root_candidates(self, locator: dict):
+        root = self._resolve_root(locator)
+        if root is None:
+            return [None]
+
+        candidates = []
+
+        def push(candidate):
+            if candidate is None:
+                return
+            if hasattr(candidate, "wrapper_object"):
+                try:
+                    candidate = candidate.wrapper_object()
+                except Exception:
+                    return
+            handle = getattr(candidate, "handle", None)
+            if any(getattr(existing, "handle", None) == handle for existing in candidates):
+                return
+            candidates.append(candidate)
+
+        push(root)
+        push(getattr(self.driver, "main_window_wrapper", None))
+        for getter in (self.driver.top_window, lambda: self.driver.desktop.top_window()):
+            try:
+                push(getter())
+            except Exception:
+                continue
+        return candidates or [root]
+
+    @staticmethod
+    def _criteria_candidates(criteria: dict) -> list[dict]:
+        candidates = [criteria]
+        control_type = criteria.get("control_type")
+        auto_id = criteria.get("auto_id")
+        if not control_type:
+            return candidates
+
+        normalized = str(control_type).strip().lower()
+        if normalized in {"edit", "textbox", "text box"} and auto_id:
+            for variant in ("Edit", "TextBox"):
+                if control_type != variant:
+                    alt = dict(criteria)
+                    alt["control_type"] = variant
+                    candidates.append(alt)
+            alt = dict(criteria)
+            alt.pop("control_type", None)
+            candidates.append(alt)
+        return candidates
+
+    @staticmethod
+    def _matches_candidate(wrapper, candidate: dict) -> bool:
+        info = getattr(wrapper, "element_info", None)
+        if info is None:
+            return False
+        for key, expected in candidate.items():
+            if key == "auto_id":
+                actual = getattr(info, "automation_id", "")
+            elif key == "control_type":
+                actual = getattr(info, "control_type", "")
+            elif key == "title":
+                actual = getattr(info, "name", "") or ""
+            else:
+                actual = getattr(info, key, "")
+            if str(actual) != str(expected):
+                return False
+        return True
+
+    def _find_in_descendants(self, root, candidate: dict):
+        try:
+            descendants = root.descendants()
+        except Exception:
+            return None
+        for descendant in descendants:
+            try:
+                if self._matches_candidate(descendant, candidate):
+                    self.logger.info("Fallback descendant match for %s", candidate)
+                    return descendant
+            except Exception:
+                continue
+        return None
+
     def find(self, locator: dict, timeout: int = DEFAULT_TIMEOUT):
         criteria = self._criteria(locator)
-        root = self._resolve_root(locator)
         deadline = time.time() + timeout
         last_error = None
 
         while time.time() < deadline:
-            try:
-                if root is None:
-                    window_spec = self.driver.app.window(**criteria)
-                    if window_spec.exists(timeout=0.5):
-                        return window_spec
-                else:
-                    return root.child_window(**criteria).wrapper_object()
-            except Exception as exc:  # pragma: no cover
-                last_error = exc
+            for root in self._root_candidates(locator):
+                for candidate in self._criteria_candidates(criteria):
+                    try:
+                        if root is None:
+                            window_spec = self.driver.app.window(**candidate)
+                            if window_spec.exists(timeout=0.5):
+                                return window_spec
+                        else:
+                            try:
+                                return root.child_window(**candidate).wrapper_object()
+                            except Exception as exc:
+                                last_error = exc
+                                fallback = self._find_in_descendants(root, candidate)
+                                if fallback is not None:
+                                    return fallback
+                    except Exception as exc:  # pragma: no cover
+                        last_error = exc
             time.sleep(0.5)
 
         raise ElementNotFoundError(f"Unable to find control {criteria}: {last_error}")

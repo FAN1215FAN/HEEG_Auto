@@ -5,14 +5,20 @@ from pathlib import Path
 
 import yaml
 
+ELEMENT_FILE_REGISTRY = {
+    "patient.create": Path("patient") / "create_patient.yaml",
+    "device.settings": Path("device") / "device_settings.yaml",
+}
+
 
 class ElementStore:
-    """元素仓库：支持按内部 key 或中文显示名解析元素。"""
+    """元素仓库：支持按内部 key、显示名称或别名解析元素。"""
 
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = root_dir
         self.file_registry = {
-            "patient.create": self.root_dir / "patient" / "create_patient.yaml",
+            module_id: self.root_dir / relative_path
+            for module_id, relative_path in ELEMENT_FILE_REGISTRY.items()
         }
 
     def load(self, module_id: str) -> dict[str, dict]:
@@ -33,5 +39,7 @@ class ElementStore:
             return deepcopy(elements[reference])
         for locator in elements.values():
             if locator.get("label") == reference:
+                return deepcopy(locator)
+            if reference in locator.get("aliases", []):
                 return deepcopy(locator)
         raise KeyError(f"未找到元素定义：{reference}")

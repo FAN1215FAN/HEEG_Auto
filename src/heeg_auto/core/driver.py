@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import time
 from pathlib import Path
@@ -6,15 +6,7 @@ from pathlib import Path
 from PIL import ImageGrab
 from pywinauto import Application, Desktop
 
-from heeg_auto.config.settings import (
-    ACTION_PAUSE_SECONDS,
-    APP_PATH,
-    MAIN_WINDOW_TIMEOUT,
-    SCREENSHOT_DIR,
-    UIA_BACKEND,
-    ensure_artifact_dirs,
-)
-
+from heeg_auto.config.settings import ACTION_PAUSE_SECONDS, APP_PATH, MAIN_WINDOW_TIMEOUT, SCREENSHOT_DIR, UIA_BACKEND, ensure_artifact_dirs
 
 class UIADriver:
     def __init__(self, logger) -> None:
@@ -23,39 +15,43 @@ class UIADriver:
         self.desktop = Desktop(backend=UIA_BACKEND)
         self.main_window = None
         self.main_window_wrapper = None
+        self.current_app_path = APP_PATH
 
-    def launch(self) -> str:
+    def launch(self, exe_path: str | None = None) -> str:
         ensure_artifact_dirs()
+        app_path = Path(exe_path) if exe_path else APP_PATH
+        self.current_app_path = app_path
         if self.app and self.main_window_wrapper is not None:
             self.logger.info("Reuse existing application session.")
             return "reuse"
-
-        attached = self._attach_existing()
+        attached = self._attach_existing(app_path)
         if attached:
             self.logger.info("Attached to existing application session.")
             return "attach"
-
-        self.logger.info("Launching application: %s", APP_PATH)
-        self.app = Application(backend=UIA_BACKEND).start(str(APP_PATH))
-        self.app.wait_cpu_usage_lower(threshold=5, timeout=MAIN_WINDOW_TIMEOUT)
+        self.logger.info("Launching application: %s", app_path)
+        self.app = Application(backend=UIA_BACKEND).start(str(app_path), wait_for_idle=False)
+        self._wait_for_startup_stable()
         self._bind_main_window()
         self.main_window_wrapper.set_focus()
         time.sleep(ACTION_PAUSE_SECONDS)
         return "launch"
-    def reuse_existing(self) -> str:
+
+    def reuse_existing(self, exe_path: str | None = None) -> str:
         ensure_artifact_dirs()
+        app_path = Path(exe_path) if exe_path else APP_PATH
+        self.current_app_path = app_path
         if self.app and self.main_window_wrapper is not None:
             self.logger.info("Reuse existing application session.")
             return "reuse"
-        attached = self._attach_existing()
+        attached = self._attach_existing(app_path)
         if attached:
             self.logger.info("Attached to existing application session.")
             return "attach"
-        raise RuntimeError("????????????????????????????")
+        raise RuntimeError("要求复用已有应用，但未检测到可复用程序。")
 
-    def _attach_existing(self) -> bool:
+    def _attach_existing(self, app_path: Path) -> bool:
         try:
-            self.app = Application(backend=UIA_BACKEND).connect(path=str(APP_PATH), timeout=5)
+            self.app = Application(backend=UIA_BACKEND).connect(path=str(app_path), timeout=5)
             self._bind_main_window()
             self.main_window_wrapper.set_focus()
             time.sleep(ACTION_PAUSE_SECONDS)
@@ -65,6 +61,13 @@ class UIADriver:
             self.main_window = None
             self.main_window_wrapper = None
             return False
+
+    def _wait_for_startup_stable(self) -> None:
+        try:
+            self.app.wait_cpu_usage_lower(threshold=5, timeout=8)
+            self.logger.info("Application CPU usage lowered below threshold.")
+        except Exception as exc:
+            self.logger.warning("Skipping CPU idle wait after timeout: %s", exc)
 
     def _bind_main_window(self) -> None:
         self.main_window = self._wait_for_main_window()
@@ -82,7 +85,7 @@ class UIADriver:
                 if window.is_visible() and window.element_info.control_type == "Window" and title:
                     self.logger.info("Main window detected: %s", title)
                     return window_spec
-            except Exception as exc:  # pragma: no cover
+            except Exception as exc:
                 last_error = exc
             time.sleep(0.5)
         raise RuntimeError(f"Unable to detect main window within {MAIN_WINDOW_TIMEOUT}s: {last_error}")
@@ -124,33 +127,23 @@ class UIADriver:
         self.logger.info("Saved window screenshot: %s", screenshot_path)
         return screenshot_path
 
-    def capture_failure_artifacts(
-        self,
-        case_name: str,
-        step_name: str,
-        timestamp: str,
-        step_index: int | None = None,
-    ) -> list[Path]:
+    def capture_failure_artifacts(self, case_name: str, step_name: str, timestamp: str, step_index: int | None = None) -> list[Path]:
         saved_paths: list[Path] = []
         case_part = self._safe_fragment(case_name)
         step_part = self._safe_fragment(step_name)
         index_part = f"step{step_index:02d}_" if step_index is not None else ""
         prefix = f"{case_part}_{index_part}{step_part}_{timestamp}"
-
         try:
             saved_paths.append(self.capture_full_screen(f"{prefix}_screen.png"))
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             self.logger.error("Failed to save full-screen screenshot: %s", exc)
-
         candidates = []
         try:
             candidates.append(("active", self.top_window()))
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             self.logger.error("Failed to resolve active window for screenshot: %s", exc)
-
         if self.main_window_wrapper is not None:
             candidates.append(("main", self.main_window_wrapper))
-
         seen_handles: set[int] = set()
         for label, candidate in candidates:
             try:
@@ -163,9 +156,8 @@ class UIADriver:
                 seen_handles.add(handle)
             try:
                 saved_paths.append(self.capture_window_screenshot(f"{prefix}_{label}.png", target=candidate))
-            except Exception as exc:  # pragma: no cover
+            except Exception as exc:
                 self.logger.error("Failed to save %s window screenshot: %s", label, exc)
-
         return saved_paths
 
     def close(self) -> None:
@@ -173,9 +165,8 @@ class UIADriver:
             return
         try:
             self.top_window().close()
-        except Exception:  # pragma: no cover
+        except Exception:
             pass
-
         deadline = time.time() + 10
         while time.time() < deadline:
             try:
@@ -188,9 +179,9 @@ class UIADriver:
             try:
                 self.app.kill()
                 self.logger.info("Application did not exit gracefully; forced kill issued.")
-            except Exception:  # pragma: no cover
+            except Exception:
                 pass
-
         self.app = None
         self.main_window = None
         self.main_window_wrapper = None
+        self.current_app_path = APP_PATH

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import platform
 import traceback
@@ -16,13 +16,6 @@ from heeg_auto.runner.case_loader import FormalCaseLoader
 from heeg_auto.runner.exceptions import ModuleExecutionError
 from heeg_auto.runner.module_runner import ModuleRunner
 
-LAUNCH_RESULT_MAP = {
-    "launch": ("system.launch", "\u7cfb\u7edf\u542f\u52a8"),
-    "attach": ("system.attach", "\u8fde\u63a5\u5df2\u6709\u5e94\u7528"),
-    "reuse": ("system.reuse", "\u590d\u7528\u5f53\u524d\u4f1a\u8bdd"),
-}
-
-
 class FormalCaseRunner:
     def __init__(self) -> None:
         self.logger = build_logger()
@@ -38,95 +31,41 @@ class FormalCaseRunner:
         started_at = datetime.now()
         report_timestamp = started_at.strftime("%Y%m%d_%H%M%S")
         module_results: list[dict[str, Any]] = []
-        current_location = "system.launch"
-
+        current_location = case_id
         try:
-            launch_started = perf_counter()
-            launch_mode = self.actions.ensure_session(case_data.get("session_policy", "\u81ea\u52a8"))
-            launch_module_id, launch_module_label = LAUNCH_RESULT_MAP[launch_mode]
-            module_results.append(
-                {
-                    "module_id": launch_module_id,
-                    "module_label": launch_module_label,
-                    "status": "PASS",
-                    "expected_status": "PASS",
-                    "duration_seconds": round(perf_counter() - launch_started, 3),
-                    "failed_step": "",
-                    "step_results": [],
-                }
-            )
-
             for entry in case_data["module_chain"]:
                 current_location = entry["module"]
                 started = perf_counter()
                 result = self.module_runner.run_chain(self.actions, self.element_store, [entry])[0]
                 result["duration_seconds"] = round(perf_counter() - started, 3)
                 module_results.append(result)
-
             finished_at = datetime.now()
-            return self._build_result(
-                case_data=case_data,
-                started_at=started_at,
-                finished_at=finished_at,
-                report_timestamp=report_timestamp,
-                module_results=module_results,
-                passed=True,
-                error_summary="",
-                error_detail="",
-                failure={},
-                artifact_paths=[],
-            )
+            return self._build_result(case_data, started_at, finished_at, report_timestamp, module_results, True, "", "", {}, [])
         except Exception as exc:
             failure = self._build_failure_payload(exc, current_location)
             if failure.get("module_result"):
                 module_results.append(failure["module_result"])
-            saved_paths = self.driver.capture_failure_artifacts(
-                case_name=case_id,
-                step_name=failure["failure_location"],
-                timestamp=case_data["context"]["timestamp"],
-            )
+            saved_paths = self.driver.capture_failure_artifacts(case_name=case_id, step_name=failure["failure_location"], timestamp=case_data["context"]["timestamp"])
             for path in saved_paths:
                 self.logger.error("failure.artifact %s", path)
             finished_at = datetime.now()
-            result = self._build_result(
-                case_data=case_data,
-                started_at=started_at,
-                finished_at=finished_at,
-                report_timestamp=report_timestamp,
-                module_results=module_results,
-                passed=False,
-                error_summary=str(exc),
-                error_detail=traceback.format_exc(),
-                failure=failure,
-                artifact_paths=saved_paths,
-            )
+            result = self._build_result(case_data, started_at, finished_at, report_timestamp, module_results, False, str(exc), traceback.format_exc(), failure, saved_paths)
+            # UI case 一旦失败，优先立即清理应用，避免主界面继续挂住占用桌面。
+            self.driver.close()
             if raise_on_failure:
                 setattr(exc, "case_result", result)
                 raise
             return result
         finally:
-            if close_after_run:
+            if close_after_run and self.driver.app is not None:
                 self.driver.close()
 
-    def _build_result(
-        self,
-        case_data: dict[str, Any],
-        started_at: datetime,
-        finished_at: datetime,
-        report_timestamp: str,
-        module_results: list[dict[str, Any]],
-        passed: bool,
-        error_summary: str,
-        error_detail: str,
-        failure: dict[str, Any],
-        artifact_paths: list[str],
-    ) -> dict[str, Any]:
+    def _build_result(self, case_data: dict[str, Any], started_at: datetime, finished_at: datetime, report_timestamp: str, module_results: list[dict[str, Any]], passed: bool, error_summary: str, error_detail: str, failure: dict[str, Any], artifact_paths: list[str]) -> dict[str, Any]:
         return {
             "case_id": case_data["case_id"],
             "case_name": case_data["case_name"],
             "case_path": case_data["case_path"],
             "tags": case_data.get("tags", []),
-            "session_policy": case_data.get("session_policy", "\u81ea\u52a8"),
             "module_chain_labels": case_data.get("module_chain_labels", []),
             "passed": passed,
             "status": "PASS" if passed else "FAIL",
