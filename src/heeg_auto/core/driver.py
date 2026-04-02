@@ -1,12 +1,21 @@
 ﻿from __future__ import annotations
 
+import subprocess
 import time
 from pathlib import Path
 
 from PIL import ImageGrab
 from pywinauto import Application, Desktop
 
-from heeg_auto.config.settings import ACTION_PAUSE_SECONDS, APP_PATH, MAIN_WINDOW_TIMEOUT, SCREENSHOT_DIR, UIA_BACKEND, ensure_artifact_dirs
+from heeg_auto.config.settings import (
+    ACTION_PAUSE_SECONDS,
+    APP_PATH,
+    MAIN_WINDOW_TIMEOUT,
+    SCREENSHOT_DIR,
+    UIA_BACKEND,
+    ensure_artifact_dirs,
+)
+
 
 class UIADriver:
     def __init__(self, logger) -> None:
@@ -160,6 +169,25 @@ class UIADriver:
                 self.logger.error("Failed to save %s window screenshot: %s", label, exc)
         return saved_paths
 
+    def force_close_running_app(self) -> None:
+        process_name = self.current_app_path.name if self.current_app_path else APP_PATH.name
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/IM", process_name],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+            self.logger.warning("Forced close issued for process: %s", process_name)
+        except Exception as exc:
+            self.logger.error("Failed to force close process %s: %s", process_name, exc)
+        finally:
+            self.app = None
+            self.main_window = None
+            self.main_window_wrapper = None
+            self.current_app_path = APP_PATH
+
     def close(self) -> None:
         if not self.app:
             return
@@ -176,11 +204,8 @@ class UIADriver:
                 break
             time.sleep(0.5)
         else:
-            try:
-                self.app.kill()
-                self.logger.info("Application did not exit gracefully; forced kill issued.")
-            except Exception:
-                pass
+            self.force_close_running_app()
+            return
         self.app = None
         self.main_window = None
         self.main_window_wrapper = None

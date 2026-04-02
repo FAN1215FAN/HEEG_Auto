@@ -61,45 +61,48 @@ class _Logger:
         return None
 
 
-def test_patient_positive_case_matches_current_direct_parameter_style():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/patient/TC_PATIENT_001.yaml")
-    assert payload["case_id"] == "TC_PATIENT_001"
-    assert payload["case_name"] == "正常创建"
+def test_patient_positive_case_matches_assertion_group_style():
+    payload = FormalCaseLoader().load("src/heeg_auto/cases/患者检查管理/患者管理/1新建患者_正常创建.yaml")
+    assert payload["case_id"] == "患者管理_01"
+    assert payload["case_name"] == "新建患者_正常创建"
     assert payload["data"] == {}
-    assert payload["module_chain"][0]["module"] == "patient.create"
-    assert payload["module_chain"][0]["params"]["patient_name"] == "哈哈123"
-    assert payload["module_chain"][0]["params"]["habit_hand"] == "右手"
+    assert [entry["module"] for entry in payload["module_chain"]] == ["system.launch", "patient.create"]
+    assert payload["module_chain"][1]["params"]["patient_name"] == "哈哈123"
+    assert payload["module_chain"][1]["params"]["eeg_id"] == "123456"
+    assert payload["module_chain"][1]["assertion_group"] == "创建成功"
 
 
-def test_patient_negative_case_matches_current_direct_parameter_style():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/patient/TC_PATIENT_002.yaml")
-    assert payload["case_id"] == "TC_PATIENT_002"
-    assert payload["data"] == {}
-    assert payload["module_chain"][0]["params"]["gender"] == "女"
-    assert payload["module_chain"][0]["params"]["expect_status"] == "FAIL"
+def test_patient_negative_case_uses_failure_assertion_group():
+    payload = FormalCaseLoader().load("src/heeg_auto/cases/患者检查管理/患者管理/新建患者_姓名含特殊字符.yaml")
+    assert payload["case_id"] == "患者管理_02"
+    assert payload["module_chain"][0]["params"]["gender"] == "男"
     assert payload["module_chain"][0]["params"]["expect_error_contains"] == "患者姓名不能包含特殊字符"
+    assert payload["module_chain"][0]["assertion_group"] == "创建失败"
 
 
-def test_device_case_matches_current_single_module_style():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/device/TC_DEVICE_001.yaml")
-    assert payload["case_id"] == "TC_DEVICE_001"
-    assert payload["data"] == {}
+def test_device_case_uses_configured_launch_module_and_text_normalization():
+    payload = FormalCaseLoader().load("src/heeg_auto/cases/系统设置/设备设置/设备设置循环.yaml")
+    assert payload["case_id"] == "设备设置_02"
     assert [entry["module"] for entry in payload["module_chain"]] == ["device.settings"]
-    assert payload["module_chain"][0]["params"]["device_type"] == "Neusen HEEG"
+    assert payload["module_chain"][0]["params"]["sample_rate"] == "2000"
+    assert payload["module_chain"][0]["params"]["gain_value"] == "6"
+    assert payload["module_chain"][0]["assertion_group"] == "设置成功"
 
 
-def test_long_case_supports_multiple_modules_without_data_layer():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/long/TC_LONG_001.yaml")
-    assert payload["case_id"] == "TC_LONG_001"
-    assert payload["data"] == {}
-    assert [entry["module"] for entry in payload["module_chain"]] == [
-        "system.launch",
-        "device.settings",
-        "patient.create",
-    ]
-    assert payload["module_chain"][1]["params"]["sample_rate"] == ["1000", "2000", "4000"]
-    assert payload["module_chain"][1]["params"]["ip_address"] == "192.168.1.100"
-    assert payload["module_chain"][2]["params"]["habit_hand"] == "左手"
+def test_long_case_supports_variant_definition_without_quotes():
+    payload = FormalCaseLoader().load("src/heeg_auto/cases/系统设置/设备设置/采样率校验.yaml")
+    assert payload["case_id"] == "设备设置_01"
+    assert payload["variant"] == {
+        "module": "device.settings",
+        "module_label": "设备设置",
+        "param": "sample_rate",
+        "param_label": "采样率",
+        "values": ["1000", "2000", "4000"],
+    }
+    assert payload["module_chain"][1]["params"]["sample_rate"] == "${变参值}"
+    assert payload["module_chain"][1]["params"]["ip_address"] == "192.168.1.123"
+    assert payload["loop_count"] == 1
+    assert payload["stop_on_failure"] is True
 
 
 def test_loader_rejects_duplicate_yaml_keys(tmp_path):
@@ -113,14 +116,57 @@ def test_loader_rejects_duplicate_yaml_keys(tmp_path):
 模块链:
   - 模块: 设备设置
     参数:
-      采样率: "1000"
-      采样率: "2000"
+      采样率: 1000
+      采样率: 2000
 """.strip(),
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="重复键"):
         FormalCaseLoader().load(case_file)
+
+
+def test_loader_preserves_actual_double_quote_content_with_single_quote_wrapper(tmp_path):
+    case_file = tmp_path / "quoted.yaml"
+    case_file.write_text(
+        """
+用例编号: TC_QUOTE_001
+用例名称: 双引号输入
+模块链:
+  - 模块: 新建患者
+    参数:
+      患者姓名: 张三
+      病历号: '"123"'
+    断言组: 创建成功
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = FormalCaseLoader().load(case_file)
+
+    assert payload["module_chain"][0]["params"]["patient_id"] == '"123"'
+
+
+def test_loader_supports_loop_count_and_stop_on_failure_flags(tmp_path):
+    case_file = tmp_path / "loop.yaml"
+    case_file.write_text(
+        """
+用例编号: TC_LOOP_001
+用例名称: 循环
+循环次数: 3
+失败即停: 是
+模块链:
+  - 模块: 启动软件
+    参数:
+      会话模式: 自动
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = FormalCaseLoader().load(case_file)
+
+    assert payload["loop_count"] == 3
+    assert payload["stop_on_failure"] is True
 
 
 def test_dialog_page_prefers_active_dialog_window_after_open():

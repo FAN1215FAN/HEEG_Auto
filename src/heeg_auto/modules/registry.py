@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from heeg_auto.config.settings import MODULES_DIR
 
@@ -16,3 +16,4 @@ MODULE_NAME_ALIASES = {
     "设备设置": "device.settings",
     "device.settings": "device.settings",
 }
+

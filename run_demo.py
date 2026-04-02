@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 import sys
 
 
@@ -14,19 +14,26 @@ from heeg_auto.runner.formal_case_runner import FormalCaseRunner
 
 def main() -> int:
     runner = FormalCaseRunner()
-    result = runner.run_case(DEFAULT_CASE_PATH, raise_on_failure=False)
+    result = runner.run_case(DEFAULT_CASE_PATH, raise_on_failure=False, close_after_run=False)
     report_files = generate_reports(result)
 
     print(f"Case ID: {result['case_id']}")
     print(f"Case: {result['case_name']}")
     print(f"Modules: {' -> '.join(result.get('module_chain_labels', [])) or '-'}")
-    print(f"Patient Name: {result['context'].get('patient_name', '-')}")
-    print(f"Status: {'PASS' if result['passed'] else 'FAIL'}")
-    print(f"JSON Report: {report_files['json_path']}")
-    print(f"Word Report: {report_files['docx_path']}")
+    print(f"Status: {result['status']}")
+    print(
+        "Runs: "
+        f"planned={result['summary'].get('planned_runs', 0)}, "
+        f"executed={result['summary'].get('executed_runs', 0)}, "
+        f"passed={result['summary'].get('passed_runs', 0)}, "
+        f"failed={result['summary'].get('failed_runs', 0)}, "
+        f"interrupted={result['summary'].get('interrupted_runs', 0)}, "
+        f"not_run={result['summary'].get('not_run_runs', 0)}"
+    )
+    print(f"HTML Report: {report_files['html_path']}")
 
     if not result["passed"]:
-        print(f"Error Summary: {result.get('error_summary', '-')}" )
+        print(f"Error Summary: {result.get('error_summary', '-')}")
         return 1
     return 0
 

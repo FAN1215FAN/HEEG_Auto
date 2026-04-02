@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 from copy import deepcopy
 from time import perf_counter
-from typing import Any
+from typing import Any, Callable
 
 from heeg_auto.elements import ElementStore
 from heeg_auto.modules import ModuleStore
@@ -17,7 +17,6 @@ MODULE_PARAM_ALIASES = {
     "病历号": "patient_id",
     "脑电号": "eeg_id",
     "备注": "note",
-    "预期状态": "expect_status",
     "预期错误包含": "expect_error_contains",
     "设备类型": "device_type",
     "采样率": "sample_rate",
@@ -32,32 +31,58 @@ MODULE_PARAM_ALIASES = {
     "软件路径": "exe_path",
     "exe路径": "exe_path",
     "会话模式": "session_mode",
+    "变参值": "variant_value",
 }
+
+ProgressCallback = Callable[[str], None]
 
 
 class ModuleRunner:
     def __init__(self) -> None:
         self.module_store = ModuleStore()
 
-    def run_chain(self, actions, element_store: ElementStore, module_chain: list[dict]) -> list[dict]:
+    def run_chain(
+        self,
+        actions,
+        element_store: ElementStore,
+        module_chain: list[dict],
+        progress_callback: ProgressCallback | None = None,
+    ) -> list[dict]:
         module_results = []
         for entry in module_chain:
             module_definition = self.module_store.load(entry["module"])
             elements = element_store.load(module_definition["element_module"]) if module_definition.get("element_module") else {}
-            module_results.append(self._run_module(actions, elements, module_definition, entry.get("params", {})))
+            module_results.append(
+                self._run_module(
+                    actions=actions,
+                    elements=elements,
+                    module_definition=module_definition,
+                    params=entry.get("params", {}),
+                    assertion_group=entry.get("assertion_group"),
+                    progress_callback=progress_callback,
+                )
+            )
         return module_results
 
-    def _run_module(self, actions, elements: dict[str, dict], module_definition: dict[str, Any], params: dict[str, Any]) -> dict:
+    def _run_module(
+        self,
+        actions,
+        elements: dict[str, dict],
+        module_definition: dict[str, Any],
+        params: dict[str, Any],
+        assertion_group: str | None,
+        progress_callback: ProgressCallback | None = None,
+    ) -> dict:
         step_results: list[dict[str, Any]] = []
-        expected_status = str(params.get("expect_status", "PASS")).upper()
         context = self._build_context(params)
         try:
             for step in module_definition.get("steps", []):
                 for step_context in self._iter_step_contexts(step, context):
-                    self._run_step(actions, elements, step, step_context, step_results)
-            for step in module_definition.get("assertions", {}).get(expected_status, []):
+                    self._run_step(actions, elements, step, step_context, step_results, stage="步骤", progress_callback=progress_callback)
+            assertions = self._resolve_assertions(module_definition, assertion_group)
+            for step in assertions:
                 for step_context in self._iter_step_contexts(step, context):
-                    self._run_step(actions, elements, step, step_context, step_results)
+                    self._run_step(actions, elements, step, step_context, step_results, stage="断言", progress_callback=progress_callback)
         except Exception as exc:
             failed_step = step_results[-1]["step_name"] if step_results else ""
             raise ModuleExecutionError(
@@ -70,11 +95,20 @@ class ModuleRunner:
         return {
             "module_id": module_definition["module_id"],
             "module_label": module_definition["module_label"],
+            "assertion_group": assertion_group or "",
             "status": "PASS",
-            "expected_status": expected_status,
             "failed_step": "",
             "step_results": step_results,
         }
+
+    @staticmethod
+    def _resolve_assertions(module_definition: dict[str, Any], assertion_group: str | None) -> list[dict[str, Any]]:
+        assertions = module_definition.get("assertions", {})
+        if not assertion_group:
+            return []
+        if assertion_group not in assertions:
+            raise KeyError(f"模块 {module_definition['module_label']} 未定义断言组：{assertion_group}")
+        return assertions[assertion_group]
 
     def _iter_step_contexts(self, step: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
         conditional_key = step.get("when_param")
@@ -92,30 +126,43 @@ class ModuleRunner:
             return contexts
         return [context]
 
-    def _run_step(self, actions, elements: dict[str, dict], step: dict[str, Any], context: dict[str, Any], step_results: list[dict[str, Any]]) -> None:
+    def _run_step(
+        self,
+        actions,
+        elements: dict[str, dict],
+        step: dict[str, Any],
+        context: dict[str, Any],
+        step_results: list[dict[str, Any]],
+        stage: str,
+        progress_callback: ProgressCallback | None = None,
+    ) -> None:
         conditional_key = step.get("when_param")
+        step_name = step.get("step_name") or step.get("action") or "unnamed_step"
+        action_name = step.get("action", "")
         if conditional_key:
             internal_key = MODULE_PARAM_ALIASES.get(conditional_key, conditional_key)
             if not context.get(internal_key):
                 step_results.append(
                     {
-                        "step_name": step.get("step_name") or step.get("action") or "unnamed_step",
-                        "action": step.get("action", ""),
+                        "stage": stage,
+                        "step_name": step_name,
+                        "action": action_name,
                         "status": "SKIP",
                         "duration_seconds": 0,
                         "error_summary": f"未提供参数：{conditional_key}",
                     }
                 )
                 return
+        if progress_callback:
+            progress_callback(f"{stage}:{step_name}:开始")
         started = perf_counter()
-        step_name = step.get("step_name") or step.get("action") or "unnamed_step"
-        action_name = step.get("action", "")
         payload = self._build_action_payload(elements, step, context)
         try:
             action_id = actions.resolve_action_name(action_name)
             getattr(actions, action_id)(**payload)
             step_results.append(
                 {
+                    "stage": stage,
                     "step_name": step_name,
                     "action": action_name,
                     "status": "PASS",
@@ -123,10 +170,13 @@ class ModuleRunner:
                     "error_summary": "",
                 }
             )
+            if progress_callback:
+                progress_callback(f"{stage}:{step_name}:完成")
         except Exception as exc:
             if step.get("optional"):
                 step_results.append(
                     {
+                        "stage": stage,
                         "step_name": step_name,
                         "action": action_name,
                         "status": "SKIP",
@@ -134,9 +184,12 @@ class ModuleRunner:
                         "error_summary": str(exc),
                     }
                 )
+                if progress_callback:
+                    progress_callback(f"{stage}:{step_name}:可选跳过")
                 return
             step_results.append(
                 {
+                    "stage": stage,
                     "step_name": step_name,
                     "action": action_name,
                     "status": "FAIL",
@@ -144,6 +197,8 @@ class ModuleRunner:
                     "error_summary": str(exc),
                 }
             )
+            if progress_callback:
+                progress_callback(f"{stage}:{step_name}:失败")
             raise
 
     def _build_action_payload(self, elements: dict[str, dict], step: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:

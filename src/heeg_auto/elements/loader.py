@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from copy import deepcopy
 from pathlib import Path
@@ -43,3 +43,5 @@ class ElementStore:
             if reference in locator.get("aliases", []):
                 return deepcopy(locator)
         raise KeyError(f"未找到元素定义：{reference}")
+
+

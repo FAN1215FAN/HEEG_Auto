@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import pytest
 
@@ -13,4 +13,9 @@ def test_registered_modules_are_loadable(module_id: str):
     assert payload["module_id"] == module_id
     assert payload["module_label"]
     assert payload["steps"]
-    assert "PASS" in payload["assertions"]
+    assert isinstance(payload["assertions"], dict)
+    if module_id == "patient.create":
+        assert "创建成功" in payload["assertions"]
+        assert "创建失败" in payload["assertions"]
+    if module_id == "device.settings":
+        assert "设置成功" in payload["assertions"]
