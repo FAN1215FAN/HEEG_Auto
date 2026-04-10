@@ -10,4 +10,6 @@ markers = [
   "impedance: marks impedance-related tests",
   "start: marks startup and system-module-related tests",
   "ui: marks real desktop UI smoke tests",
+  "formal: marks formal YAML case execution entry",
+  "v2: marks v2 step-based case tests",
 ]

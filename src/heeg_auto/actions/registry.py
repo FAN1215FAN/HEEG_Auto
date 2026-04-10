@@ -8,8 +8,18 @@ ACTION_DEFINITIONS = {
         "parameters": [],
     },
     "click": {
-        "label": "单击",
+        "label": "点击",
         "implementation": "heeg_auto.core.actions.ActionExecutor.click",
+        "parameters": ["target"],
+    },
+    "double_click": {
+        "label": "双击",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.double_click",
+        "parameters": ["target"],
+    },
+    "right_click": {
+        "label": "右键",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.right_click",
         "parameters": ["target"],
     },
     "input_text": {
@@ -26,6 +36,11 @@ ACTION_DEFINITIONS = {
         "label": "选择单选",
         "implementation": "heeg_auto.core.actions.ActionExecutor.select_radio",
         "parameters": ["target"],
+    },
+    "set_checkbox": {
+        "label": "设置勾选",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.set_checkbox",
+        "parameters": ["target", "value"],
     },
     "wait_for_window": {
         "label": "等待窗口",
@@ -46,6 +61,11 @@ ACTION_DEFINITIONS = {
         "label": "断言文本可见",
         "implementation": "heeg_auto.core.actions.ActionExecutor.assert_text_visible",
         "parameters": ["text", "timeout"],
+    },
+    "screenshot": {
+        "label": "截图",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.screenshot",
+        "parameters": ["file_name"],
     },
 }
 

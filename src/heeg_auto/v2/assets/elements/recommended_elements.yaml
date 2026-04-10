@@ -1,0 +1,133 @@
+元素资产:
+  - 元素标识: main.patient_list.new
+    资产类型: 元素
+    中文名称: 新增
+    所属窗口: 患者列表
+    AutomationId: NewPatient
+    ControlType: Button
+    Name: 新增
+    ClassName: Button
+    是否唯一: 是
+    用途说明: 打开创建患者窗口
+
+  - 元素标识: main.patient_list.first_row
+    资产类型: 元素
+    中文名称: 患者列表第一行
+    所属窗口: 患者列表
+    ControlType: DataItem
+    ClassName: DataGridRow
+    是否唯一: 否
+    用途说明: 用于双击或右键示例，后续建议研发补充稳定标识
+
+  - 元素标识: dialog.create_patient.patient_name
+    资产类型: 元素
+    中文名称: 患者姓名
+    所属窗口: 创建患者
+    AutomationId: PatientName
+    ControlType: Edit
+    ClassName: TextBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.birth_date
+    资产类型: 元素
+    中文名称: 出生日期
+    所属窗口: 创建患者
+    AutomationId: PatientBirthDate
+    ControlType: Custom
+    ClassName: TextBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.age
+    资产类型: 元素
+    中文名称: 年龄
+    所属窗口: 创建患者
+    AutomationId: PatientAge
+    ControlType: Edit
+    ClassName: TextBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.gender
+    资产类型: 元素
+    中文名称: 性别
+    所属窗口: 创建患者
+    AutomationId: PatientGender
+    ControlType: ComboBox
+    ClassName: ComboBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.left_hand
+    资产类型: 元素
+    中文名称: 左利手
+    所属窗口: 创建患者
+    AutomationId: PatienLeftHand
+    ControlType: RadioButton
+    Name: 左利手
+    ClassName: RadioButton
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.patient_id
+    资产类型: 元素
+    中文名称: 病历号
+    所属窗口: 创建患者
+    AutomationId: PatientID
+    ControlType: Edit
+    ClassName: TextBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.eeg_id
+    资产类型: 元素
+    中文名称: 脑电号
+    所属窗口: 创建患者
+    AutomationId: PatientEEGID
+    ControlType: Edit
+    ClassName: TextBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.note
+    资产类型: 元素
+    中文名称: 备注
+    所属窗口: 创建患者
+    AutomationId: PatientNote
+    ControlType: Edit
+    ClassName: TextBox
+    是否唯一: 是
+    用途说明: 创建患者表单字段
+
+  - 元素标识: dialog.create_patient.ok
+    资产类型: 元素
+    中文名称: 确定
+    所属窗口: 创建患者
+    AutomationId: OK
+    ControlType: Button
+    Name: 确定
+    ClassName: Button
+    是否唯一: 是
+    用途说明: 提交创建患者
+
+  - 元素标识: dialog.create_patient.bottom_close
+    资产类型: 元素
+    中文名称: 底部关闭按钮
+    所属窗口: 创建患者
+    AutomationId: Cancel
+    ControlType: Button
+    Name: 关闭
+    ClassName: Button
+    是否唯一: 是
+    用途说明: 创建患者窗口底部关闭按钮
+
+  - 元素标识: dialog.create_patient.title_close
+    资产类型: 元素
+    中文名称: 标题栏关闭按钮
+    所属窗口: 创建患者
+    ControlType: Button
+    Name: 关闭
+    ClassName: Button
+    是否唯一: 否
+    用途说明: 当前缺少稳定 AutomationId，建议研发补充

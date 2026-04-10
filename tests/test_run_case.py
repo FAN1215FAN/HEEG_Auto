@@ -2,7 +2,7 @@
 
 import pytest
 
-import run_case_suite
+import run_case
 
 
 @pytest.fixture
@@ -33,14 +33,14 @@ def sample_catalog() -> list[dict]:
 
 
 def test_resolve_selection_supports_leaf_directory_name(sample_catalog):
-    selected = run_case_suite._resolve_selection(sample_catalog, "患者管理")
+    selected = run_case._resolve_selection(sample_catalog, "患者管理")
 
     assert [item["case_id"] for item in selected] == ["患者管理_01", "患者管理_02"]
 
 
 def test_resolve_selection_rejects_full_directory_path(sample_catalog):
     with pytest.raises(ValueError, match="请输入文件夹名称"):
-        run_case_suite._resolve_selection(sample_catalog, "患者检查管理/患者管理")
+        run_case._resolve_selection(sample_catalog, "患者检查管理/患者管理")
 
 
 def test_resolve_selection_reports_ambiguous_directory():
@@ -62,4 +62,5 @@ def test_resolve_selection_reports_ambiguous_directory():
     ]
 
     with pytest.raises(ValueError, match="文件夹名称匹配到多个目录"):
-        run_case_suite._resolve_selection(catalog, "患者管理")
+        run_case._resolve_selection(catalog, "患者管理")
+

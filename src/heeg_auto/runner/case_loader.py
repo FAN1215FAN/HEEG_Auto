@@ -1,7 +1,9 @@
 ﻿from __future__ import annotations
 
+import csv
 import re
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +30,7 @@ MODULE_ENTRY_KEY_ALIASES = {
 }
 VARIANT_KEY_ALIASES = {
     "模块": "module",
-    "参数": "param",
+    "参数": "params",
     "候选值": "values",
 }
 PARAM_KEY_ALIASES = {
@@ -87,8 +89,10 @@ class FormalCaseLoader:
     def load(self, case_path: str | Path) -> dict[str, Any]:
         case_file = Path(case_path)
         raw_payload = yaml.load(case_file.read_text(encoding="utf-8"), Loader=_NoDuplicateSafeLoader)
+        if not isinstance(raw_payload, dict):
+            raise ValueError("正式 case 顶层必须是字典结构。")
         payload = self._normalize_case(raw_payload)
-        context = self._build_context(payload.get("data", {}))
+        context = self._build_context(payload.get("data", {}), payload.get("variant"))
         payload["case_path"] = str(case_file)
         payload["context"] = context
         payload["module_chain"] = self._resolve_payload(payload.get("module_chain", []), context)
@@ -113,7 +117,7 @@ class FormalCaseLoader:
             "data": self._normalize_data(payload.get("data", {})),
             "variant": self._normalize_variant(payload.get("variant")),
             "loop_count": self._normalize_loop_count(payload.get("loop_count", 1)),
-            "stop_on_failure": self._normalize_stop_on_failure(payload.get("stop_on_failure", True)),
+            "stop_on_failure": self._normalize_stop_on_failure(payload.get("stop_on_failure", False)),
             "module_chain": [self._normalize_module_entry(entry) for entry in raw_chain],
         }
 
@@ -130,19 +134,79 @@ class FormalCaseLoader:
             raise ValueError("变参必须是字典结构。")
         variant = {VARIANT_KEY_ALIASES.get(key, key): value for key, value in raw_variant.items()}
         module_name = self._normalize_scalar(variant.get("module", ""))
-        param_label = self._normalize_scalar(variant.get("param", ""))
+        param_specs = self._normalize_variant_params(variant.get("params", []))
         values = variant.get("values", [])
-        if not module_name or not param_label:
+        if not module_name or not param_specs:
             raise ValueError("变参必须同时提供 模块 和 参数。")
         if not isinstance(values, list) or not values:
             raise ValueError("变参候选值必须是非空列表。")
-        return {
+        rows = [self._normalize_variant_row(item, param_specs) for item in values]
+        normalized = {
             "module": MODULE_NAME_ALIASES.get(module_name, module_name),
             "module_label": module_name,
-            "param": PARAM_KEY_ALIASES.get(param_label, param_label),
-            "param_label": param_label,
-            "values": [self._normalize_scalar(item) for item in values],
+            "params": param_specs,
+            "values": rows,
         }
+        if len(param_specs) == 1:
+            normalized["param"] = param_specs[0]["param"]
+            normalized["param_label"] = param_specs[0]["param_label"]
+        return normalized
+
+    def _normalize_variant_params(self, raw_params: Any) -> list[dict[str, str]]:
+        if isinstance(raw_params, list):
+            labels = [self._normalize_scalar(item) for item in raw_params]
+        elif isinstance(raw_params, str):
+            labels = [part.strip() for part in raw_params.replace("，", ",").split(",") if part.strip()]
+        else:
+            raise ValueError("变参参数定义必须是字符串或列表。")
+        if not labels:
+            raise ValueError("变参参数定义不能为空。")
+        return [
+            {
+                "param": PARAM_KEY_ALIASES.get(label, label),
+                "param_label": label,
+            }
+            for label in labels
+        ]
+
+    def _normalize_variant_row(self, raw_row: Any, param_specs: list[dict[str, str]]) -> dict[str, Any]:
+        row_items = self._normalize_variant_row_items(raw_row, expected_size=len(param_specs))
+        if len(row_items) != len(param_specs):
+            raise ValueError(
+                f"变参候选值列数不匹配：期望 {len(param_specs)} 列，实际 {len(row_items)} 列，原始值：{raw_row}"
+            )
+        mapping: dict[str, str] = {}
+        display_values: list[dict[str, str]] = []
+        for spec, item in zip(param_specs, row_items, strict=True):
+            value = self._normalize_scalar(item)
+            mapping[spec["param"]] = value
+            display_values.append(
+                {
+                    "param": spec["param"],
+                    "param_label": spec["param_label"],
+                    "value": value,
+                }
+            )
+        return {
+            "mapping": mapping,
+            "display_values": display_values,
+        }
+
+    def _normalize_variant_row_items(self, raw_row: Any, expected_size: int) -> list[Any]:
+        if isinstance(raw_row, list):
+            return raw_row
+        if isinstance(raw_row, tuple):
+            return list(raw_row)
+        if isinstance(raw_row, str):
+            text = raw_row.strip()
+            if expected_size == 1 and not (text.startswith("(") and text.endswith(")")):
+                return [text]
+            if text.startswith("(") and text.endswith(")"):
+                text = text[1:-1]
+            reader = csv.reader(StringIO(text), skipinitialspace=True)
+            parsed = next(reader, [])
+            return [item.strip() for item in parsed]
+        return [raw_row]
 
     def _normalize_module_entry(self, raw_entry: dict[str, Any]) -> dict[str, Any]:
         entry = {MODULE_ENTRY_KEY_ALIASES.get(key, key): value for key, value in raw_entry.items()}
@@ -159,12 +223,17 @@ class FormalCaseLoader:
             "assertion_group": assertion_group,
         }
 
-    def _build_context(self, data: dict[str, Any]) -> dict[str, Any]:
+    def _build_context(self, data: dict[str, Any], variant: dict[str, Any] | None) -> dict[str, Any]:
         context = {
             "timestamp": datetime.now().strftime("%Y%m%d%H%M%S"),
             "variant_value": "${变参值}",
             "变参值": "${变参值}",
         }
+        if variant:
+            for spec in variant.get("params", []):
+                placeholder = f"${{{spec['param_label']}}}"
+                context[spec["param"]] = placeholder
+                context[spec["param_label"]] = placeholder
         for key, value in data.items():
             if isinstance(value, list):
                 context[key] = [self._resolve_text(str(item), context) for item in value]
@@ -187,10 +256,11 @@ class FormalCaseLoader:
         matching_entry = next((entry for entry in module_chain if entry["module"] == variant["module"]), None)
         if matching_entry is None:
             raise ValueError(f"变参目标模块未出现在模块链中：{variant['module_label']}")
-        if variant["param"] not in matching_entry.get("params", {}):
-            raise ValueError(
-                f"变参目标参数未出现在模块参数中：{variant['module_label']} -> {variant['param_label']}"
-            )
+        for spec in variant.get("params", []):
+            if spec["param"] not in matching_entry.get("params", {}):
+                raise ValueError(
+                    f"变参目标参数未出现在模块参数中：{variant['module_label']} -> {spec['param_label']}"
+                )
 
     @staticmethod
     def _normalize_loop_count(value: Any) -> int:
@@ -243,4 +313,3 @@ class FormalCaseLoader:
             return str(value)
 
         return pattern.sub(replace, template)
-

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import html
 from datetime import datetime
@@ -133,15 +133,23 @@ def _format_execution_param_text(execution: dict[str, Any]) -> str:
     parts = []
     variant = execution.get("variant") or {}
     if variant:
-        parts.append(f"{variant.get('param_label', '-')}={variant.get('value', '-')}")
+        variant_params = variant.get("params", [])
+        if variant_params:
+            parts.extend(f"{item.get('param_label', '-')}={item.get('value', '-')}" for item in variant_params)
+        elif variant.get("param_label"):
+            parts.append(f"{variant.get('param_label', '-')}={variant.get('value', '-')}" )
     if execution.get("loop_total", 1) > 1:
-        parts.append(f"第{execution.get('loop_index', 1)}/{execution.get('loop_total', 1)}轮")
+        parts.append(f"?{execution.get('loop_index', 1)}/{execution.get('loop_total', 1)}?")
     return " | ".join(parts) if parts else "-"
 
 
 def _format_variant_target(variant: dict[str, Any] | None) -> str:
     if not variant:
         return "-"
+    params = variant.get("params", [])
+    if params:
+        joined = "?".join(item.get("param_label", "-") for item in params)
+        return f"{variant.get('module_label', '-')} -> {joined}"
     return f"{variant.get('module_label', '-')} -> {variant.get('param_label', '-')}"
 
 
@@ -153,6 +161,10 @@ def _format_failure_location(failure: dict[str, Any]) -> str:
 
 def _visible_step_results(module_result: dict[str, Any]) -> list[dict[str, Any]]:
     return [step for step in module_result.get("step_results", []) if step.get("status") != "PASS"]
+
+
+def _visible_execution_steps(execution: dict[str, Any]) -> list[dict[str, Any]]:
+    return [step for step in execution.get("step_results", []) if step.get("status") != "PASS"]
 
 
 def _collect_snapshot_cards(execution_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -308,27 +320,44 @@ def _render_snapshot_card(card: dict[str, Any]) -> str:
 
 
 def _render_execution_block(execution: dict[str, Any]) -> str:
-    module_sections = "".join(_render_module_result_block(item) for item in execution.get("module_results", [])) or "<div class=\"empty\">无模块结果。</div>"
+    module_results = execution.get("module_results", [])
+    if module_results:
+        detail_sections = "".join(_render_module_result_block(item) for item in module_results)
+        detail_title = "模块与断言结果"
+    else:
+        detail_sections = _render_v2_step_block(execution)
+        detail_title = "步骤与断言结果"
     artifact_html = "".join(
-        f"<li><a href=\"{html.escape(path)}\">{html.escape(Path(path).name)}</a></li>" for path in execution.get("artifact_paths", [])
+        f'<li><a href="{html.escape(path)}">{html.escape(Path(path).name)}</a></li>' for path in execution.get("artifact_paths", [])
     ) or "<li>无</li>"
     return f"""
     <div class="execution-card">
       <div class="summary-main">
         <span class="summary-title">{html.escape(execution.get('execution_name', '-') or '-')}</span>
-        <span class="summary-meta">{_status_badge(execution.get('status', '-'))} <span class="soft">{execution.get('duration_seconds', 0)} 秒</span></span>
+        <span class="summary-meta">{_status_badge(execution.get('status', '-'))} <span class="soft">{execution.get('duration_seconds', 0)} ?</span></span>
       </div>
       <div class="info-grid compact execution-info">
-        <div><span class="label">执行参数</span><span>{html.escape(_format_execution_param_text(execution))}</span></div>
-        <div><span class="label">开始时间</span><span>{html.escape(execution.get('started_at', '-') or '-')}</span></div>
-        <div><span class="label">结束时间</span><span>{html.escape(execution.get('finished_at', '-') or '-')}</span></div>
-        <div><span class="label">失败模块/步骤</span><span>{html.escape(_format_failure_location(execution.get('failure', {})))}</span></div>
-        <div class="full"><span class="label">失败原因或断言信息</span><span>{html.escape(execution.get('error_summary', '') or '-')}</span></div>
+        <div><span class="label">????</span><span>{html.escape(_format_execution_param_text(execution))}</span></div>
+        <div><span class="label">????</span><span>{html.escape(execution.get('started_at', '-') or '-')}</span></div>
+        <div><span class="label">????</span><span>{html.escape(execution.get('finished_at', '-') or '-')}</span></div>
+        <div><span class="label">????/??</span><span>{html.escape(_format_failure_location(execution.get('failure', {})))}</span></div>
+        <div class="full"><span class="label">?????????</span><span>{html.escape(execution.get('error_summary', '') or '-')}</span></div>
       </div>
-      <div class="subsection"><h4>模块与断言结果</h4>{module_sections}</div>
-      <div class="subsection"><h4>截图产物链接</h4><ul class="artifact-list">{artifact_html}</ul></div>
+      <div class="subsection"><h4>{detail_title}</h4>{detail_sections}</div>
+      <div class="subsection"><h4>??????</h4><ul class="artifact-list">{artifact_html}</ul></div>
     </div>
     """
+
+
+def _render_v2_step_block(execution: dict[str, Any]) -> str:
+    visible_steps = _visible_execution_steps(execution)
+    if not visible_steps:
+        return '<div class="empty">????????????</div>'
+    step_rows = "".join(
+        f"<tr><td>{html.escape(step.get('step_name', '-') or '-')}</td><td>{_status_badge(step.get('status', '-'))}</td><td>{html.escape(step.get('error_summary', '') or '-')}</td></tr>"
+        for step in visible_steps
+    )
+    return f"<table><thead><tr><th>??</th><th>??</th><th>??</th></tr></thead><tbody>{step_rows}</tbody></table>"
 
 
 def _render_module_result_block(item: dict[str, Any]) -> str:

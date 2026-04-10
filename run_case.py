@@ -1,8 +1,6 @@
 ﻿from __future__ import annotations
 
 import sys
-import traceback
-from datetime import datetime
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -10,8 +8,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from heeg_auto.core.reporting import generate_suite_reports
-from heeg_auto.runner.formal_case_runner import FormalCaseRunner
+from heeg_auto.runner.formal_suite_service import FormalSuiteService
 from tests.support.case_catalog import build_directory_catalog, load_case_catalog
 
 
@@ -120,63 +117,6 @@ def _print_execution_result(result: dict) -> None:
         print(f"  原因: {result['error_summary']}")
 
 
-def _build_loader_failure_result(item: dict, exc: Exception) -> dict:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return {
-        "case_id": item["case_id"],
-        "case_name": item["case_name"],
-        "case_path": str(item["path"]),
-        "relative_dir": item["relative_dir"],
-        "tags": item.get("tags", []),
-        "module_chain_labels": item.get("module_chain_labels", []),
-        "variant": item.get("variant"),
-        "loop_count": item.get("loop_count", 1),
-        "stop_on_failure": True,
-        "passed": False,
-        "status": "INTERRUPTED",
-        "context": {},
-        "started_at": now,
-        "finished_at": now,
-        "duration_seconds": 0,
-        "report_timestamp": datetime.now().strftime("%Y%m%d_%H%M%S"),
-        "execution_results": [
-            {
-                "sequence": 1,
-                "execution_id": f"{item['case_id']}#01",
-                "execution_name": item["case_name"],
-                "loop_index": 1,
-                "loop_total": 1,
-                "variant": None,
-                "status": "INTERRUPTED",
-                "passed": False,
-                "started_at": now,
-                "finished_at": now,
-                "duration_seconds": 0,
-                "module_results": [],
-                "error_summary": str(exc) or exc.__class__.__name__,
-                "error_detail": traceback.format_exc(),
-                "failure": {},
-                "artifact_paths": [],
-                "parameter_snapshot": [],
-            }
-        ],
-        "summary": {
-            "planned_runs": 1,
-            "executed_runs": 1,
-            "passed_runs": 0,
-            "failed_runs": 0,
-            "interrupted_runs": 1,
-            "not_run_runs": 0,
-        },
-        "module_results": [],
-        "error_summary": str(exc) or exc.__class__.__name__,
-        "error_detail": traceback.format_exc(),
-        "failure": {},
-        "artifact_paths": [],
-        "environment": {},
-    }
-
-
 def main() -> int:
     catalog = load_case_catalog()
     if not catalog:
@@ -192,30 +132,23 @@ def main() -> int:
     for item in selected:
         print(f"- {_format_case_line(item)}")
 
-    runner = FormalCaseRunner()
-    suite_results: list[dict] = []
-    for index, item in enumerate(selected, start=1):
-        print(f"\n[{index}/{len(selected)}] 开始执行：{item['case_id']} | {item['case_name']}")
-        try:
-            result = runner.run_case(item["path"], raise_on_failure=False, close_after_run=False)
-        except Exception as exc:
-            result = _build_loader_failure_result(item, exc)
-        result["relative_dir"] = item["relative_dir"]
-        suite_results.append(result)
-        _print_execution_result(result)
-
-    report_files = generate_suite_reports(suite_results)
-    passed_cases = sum(1 for item in suite_results if item.get("status") == "PASS")
-    failed_cases = sum(1 for item in suite_results if item.get("status") == "FAIL")
-    interrupted_cases = sum(1 for item in suite_results if item.get("status") == "INTERRUPTED")
+    service = FormalSuiteService()
+    try:
+        results = service.execute_suite(selected)
+        for result in results:
+            print(f"\n执行完成：{result['case_id']} | {result['case_name']}")
+            _print_execution_result(result)
+        suite_summary = service.finalize_suite(results)
+    finally:
+        service.finish()
 
     print("\n执行完成：")
-    print(f"  成功: {passed_cases}")
-    print(f"  失败: {failed_cases}")
-    print(f"  异常中断: {interrupted_cases}")
-    print(f"  HTML 报告: {report_files['html_path']}")
+    print(f"  成功: {suite_summary['passed_cases']}")
+    print(f"  失败: {suite_summary['failed_cases']}")
+    print(f"  异常中断: {suite_summary['interrupted_cases']}")
+    print(f"  HTML 报告: {suite_summary['report_files']['html_path']}")
 
-    if failed_cases or interrupted_cases:
+    if suite_summary["failed_cases"] or suite_summary["interrupted_cases"]:
         return 1
     return 0
 

@@ -1,9 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import pytest
 
 from heeg_auto.pages.create_patient_dialog import CreatePatientDialogPage
 from heeg_auto.runner.case_loader import FormalCaseLoader
+from heeg_auto.runner.case_resolver import load_case_payload
 
 
 class _DialogWrapper:
@@ -61,48 +62,105 @@ class _Logger:
         return None
 
 
-def test_patient_positive_case_matches_assertion_group_style():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/患者检查管理/患者管理/1新建患者_正常创建.yaml")
+def test_real_patient_case_now_uses_v2_structure():
+    payload = load_case_payload("src/heeg_auto/cases/患者检查管理/患者管理/新建患者_正常创建.yaml")
+
+    assert payload["case_format"] == "v2"
     assert payload["case_id"] == "患者管理_01"
-    assert payload["case_name"] == "新建患者_正常创建"
-    assert payload["data"] == {}
-    assert [entry["module"] for entry in payload["module_chain"]] == ["system.launch", "patient.create"]
-    assert payload["module_chain"][1]["params"]["patient_name"] == "哈哈123"
-    assert payload["module_chain"][1]["params"]["eeg_id"] == "123456"
-    assert payload["module_chain"][1]["assertion_group"] == "创建成功"
+    assert payload["steps"][0]["button"] == "新增"
+    assert payload["steps"][1]["field_params"]["病历号"] == "test123"
+    assert payload["steps"][2]["assertions"] == ["创建患者成功"]
 
 
-def test_patient_negative_case_uses_failure_assertion_group():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/患者检查管理/患者管理/新建患者_姓名含特殊字符.yaml")
-    assert payload["case_id"] == "患者管理_02"
-    assert payload["module_chain"][0]["params"]["gender"] == "男"
-    assert payload["module_chain"][0]["params"]["expect_error_contains"] == "患者姓名不能包含特殊字符"
-    assert payload["module_chain"][0]["assertion_group"] == "创建失败"
+def test_real_device_case_now_uses_v2_structure():
+    payload = load_case_payload("src/heeg_auto/cases/系统设置/设备设置/设备设置循环.yaml")
 
-
-def test_device_case_uses_configured_launch_module_and_text_normalization():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/系统设置/设备设置/设备设置循环.yaml")
+    assert payload["case_format"] == "v2"
     assert payload["case_id"] == "设备设置_02"
-    assert [entry["module"] for entry in payload["module_chain"]] == ["device.settings"]
-    assert payload["module_chain"][0]["params"]["sample_rate"] == "2000"
-    assert payload["module_chain"][0]["params"]["gain_value"] == "6"
-    assert payload["module_chain"][0]["assertion_group"] == "设置成功"
+    assert payload["loop_count"] == 2
+    assert payload["steps"][1]["field_params"]["IP地址1"] == "192.168.1.100"
 
 
-def test_long_case_supports_variant_definition_without_quotes():
-    payload = FormalCaseLoader().load("src/heeg_auto/cases/系统设置/设备设置/采样率校验.yaml")
-    assert payload["case_id"] == "设备设置_01"
+def test_real_device_variant_case_is_v2_and_keeps_multi_param_variant():
+    payload = load_case_payload("src/heeg_auto/cases/系统设置/设备设置/设备设置_V2_采样率校验.yaml")
+
+    assert payload["case_format"] == "v2"
+    assert payload["variant"]["params"] == [
+        {"param": "device_type", "param_label": "设备类型"},
+        {"param": "sample_rate", "param_label": "采样率"},
+        {"param": "gain_value", "param_label": "设备增益"},
+    ]
+    assert payload["variant"]["values"][1]["mapping"] == {
+        "device_type": "Neusen U32",
+        "sample_rate": "2000",
+        "gain_value": "8",
+    }
+
+
+def test_loader_supports_multi_param_variant_rows_with_parentheses_syntax(tmp_path):
+    case_file = tmp_path / "multi_variant.yaml"
+    case_file.write_text(
+        """
+用例编号: TC_DEVICE_001
+用例名称: 设备设置_多参数变参
+变参:
+  模块: 设备设置
+  参数: 设备类型, 采样率, 设备增益
+  候选值:
+    - (Neusen HEEG,1000,6)
+    - (Neusen U32,2000,8)
+模块链:
+  - 模块: 设备设置
+    参数:
+      设备类型: ${设备类型}
+      采样率: ${采样率}
+      设备增益: ${设备增益}
+      IP地址: 192.168.1.123
+    断言组: 设置成功
+""".strip(),
+        encoding="utf-8",
+    )
+
+    payload = FormalCaseLoader().load(case_file)
+
     assert payload["variant"] == {
         "module": "device.settings",
         "module_label": "设备设置",
-        "param": "sample_rate",
-        "param_label": "采样率",
-        "values": ["1000", "2000", "4000"],
+        "params": [
+            {"param": "device_type", "param_label": "设备类型"},
+            {"param": "sample_rate", "param_label": "采样率"},
+            {"param": "gain_value", "param_label": "设备增益"},
+        ],
+        "values": [
+            {
+                "mapping": {
+                    "device_type": "Neusen HEEG",
+                    "sample_rate": "1000",
+                    "gain_value": "6",
+                },
+                "display_values": [
+                    {"param": "device_type", "param_label": "设备类型", "value": "Neusen HEEG"},
+                    {"param": "sample_rate", "param_label": "采样率", "value": "1000"},
+                    {"param": "gain_value", "param_label": "设备增益", "value": "6"},
+                ],
+            },
+            {
+                "mapping": {
+                    "device_type": "Neusen U32",
+                    "sample_rate": "2000",
+                    "gain_value": "8",
+                },
+                "display_values": [
+                    {"param": "device_type", "param_label": "设备类型", "value": "Neusen U32"},
+                    {"param": "sample_rate", "param_label": "采样率", "value": "2000"},
+                    {"param": "gain_value", "param_label": "设备增益", "value": "8"},
+                ],
+            },
+        ],
     }
-    assert payload["module_chain"][1]["params"]["sample_rate"] == "${变参值}"
-    assert payload["module_chain"][1]["params"]["ip_address"] == "192.168.1.123"
-    assert payload["loop_count"] == 1
-    assert payload["stop_on_failure"] is True
+    assert payload["module_chain"][0]["params"]["device_type"] == "${设备类型}"
+    assert payload["module_chain"][0]["params"]["sample_rate"] == "${采样率}"
+    assert payload["module_chain"][0]["params"]["gain_value"] == "${设备增益}"
 
 
 def test_loader_rejects_duplicate_yaml_keys(tmp_path):

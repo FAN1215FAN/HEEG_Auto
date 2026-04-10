@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import platform
+import re
 import threading
 import traceback
 from copy import deepcopy
@@ -15,9 +16,12 @@ from heeg_auto.core.actions import ActionExecutor
 from heeg_auto.core.driver import UIADriver
 from heeg_auto.core.logger import build_logger
 from heeg_auto.elements import ElementStore
-from heeg_auto.runner.case_loader import FormalCaseLoader
+from heeg_auto.runner.case_loader import CONTEXT_KEY_ALIASES, FormalCaseLoader
+from heeg_auto.runner.case_resolver import detect_case_format
 from heeg_auto.runner.exceptions import ModuleExecutionError
 from heeg_auto.runner.module_runner import ModuleRunner
+from heeg_auto.v2.case_loader import V2CaseLoader
+from heeg_auto.v2.executor import V2CaseExecutor
 
 PARAM_DISPLAY_LABELS = {
     "patient_name": "患者姓名",
@@ -92,6 +96,8 @@ class FormalCaseRunner:
         self.element_store = ElementStore(root_dir=ELEMENTS_DIR)
         self.case_loader = FormalCaseLoader()
         self.module_runner = ModuleRunner()
+        self.v2_case_loader = V2CaseLoader()
+        self.v2_executor = V2CaseExecutor()
 
     def run_case(
         self,
@@ -100,6 +106,14 @@ class FormalCaseRunner:
         close_after_run: bool = True,
         stall_timeout_seconds: int = 60,
     ) -> dict[str, Any]:
+        if detect_case_format(case_path) == "v2":
+            return self._run_v2_case(
+                case_path=case_path,
+                raise_on_failure=raise_on_failure,
+                close_after_run=close_after_run,
+                stall_timeout_seconds=stall_timeout_seconds,
+            )
+
         case_data = self.case_loader.load(case_path)
         started_at = datetime.now()
         report_timestamp = started_at.strftime("%Y%m%d_%H%M%S")
@@ -113,7 +127,7 @@ class FormalCaseRunner:
 
         try:
             for execution in execution_plan:
-                if halt_reason and case_data.get("stop_on_failure", True):
+                if halt_reason and case_data.get("stop_on_failure", False):
                     execution_results.append(self._build_not_run_execution(execution, halt_reason))
                     continue
                 watchdog.touch(f"准备执行 {execution['execution_name']}")
@@ -121,7 +135,7 @@ class FormalCaseRunner:
                 execution_results.append(result)
                 if failure_exc and first_failure_exc is None:
                     first_failure_exc = failure_exc
-                if result["status"] in {"FAIL", "INTERRUPTED"} and case_data.get("stop_on_failure", True):
+                if result["status"] in {"FAIL", "INTERRUPTED"} and case_data.get("stop_on_failure", False):
                     halt_reason = "前序执行失败或异常中断，后续轮次按失败即停标记为未执行。"
             finished_at = datetime.now()
             case_result = self._build_case_result(
@@ -139,6 +153,88 @@ class FormalCaseRunner:
             watchdog.stop()
             if close_after_run and self.driver.app is not None:
                 self.driver.close()
+
+    def _run_v2_case(
+        self,
+        case_path: str | Path,
+        raise_on_failure: bool = True,
+        close_after_run: bool = True,
+        stall_timeout_seconds: int = 60,
+    ) -> dict[str, Any]:
+        case_data = self.v2_case_loader.load(case_path)
+        case_data.setdefault("module_chain_labels", ["V2步骤式"])
+        started_at = datetime.now()
+        watchdog = _ProgressWatchdog(driver=self.driver, logger=self.logger, timeout_seconds=stall_timeout_seconds)
+        watchdog.start()
+        watchdog.touch(f"加载 V2 用例 {case_data['case_id']}")
+        try:
+            self._ensure_v2_session(case_data, watchdog)
+            result = self.v2_executor.run_case(self.actions, case_data, progress_callback=watchdog.touch)
+            result["module_chain_labels"] = case_data["module_chain_labels"]
+            result["context"] = case_data.get("context", {})
+            result["report_timestamp"] = started_at.strftime("%Y%m%d_%H%M%S")
+            result.setdefault("artifact_paths", [])
+            result.setdefault(
+                "environment",
+                {
+                    "app_path": str(APP_PATH),
+                    "case_path": str(case_path),
+                    "cwd": str(PROJECT_ROOT),
+                    "python_version": platform.python_version(),
+                },
+            )
+            first_failure = next((item for item in result.get("execution_results", []) if item.get("status") == "FAIL"), None)
+            if first_failure is not None:
+                self._attach_v2_failure_artifacts(case_data, result, first_failure)
+                result["error_summary"] = first_failure.get("error_summary", "")
+                if raise_on_failure:
+                    exc = RuntimeError(first_failure.get("error_summary") or f"V2 用例执行失败：{case_data['case_id']}")
+                    setattr(exc, "case_result", result)
+                    raise exc
+            return result
+        finally:
+            watchdog.stop()
+            if close_after_run and self.driver.app is not None:
+                self.driver.close()
+
+    def _ensure_v2_session(self, case_data: dict[str, Any], watchdog: _ProgressWatchdog) -> None:
+        for step in case_data.get("steps", []):
+            action_name = str(step.get("action", "")).strip()
+            if action_name in {"启动应用", "launch_app"}:
+                return
+        watchdog.touch("连接已有应用会话")
+        self.actions.ensure_session(session_mode="复用已有应用")
+        watchdog.touch("已连接已有应用会话")
+
+    def _attach_v2_failure_artifacts(
+        self,
+        case_data: dict[str, Any],
+        result: dict[str, Any],
+        failed_execution: dict[str, Any],
+    ) -> None:
+        failed_step = next(
+            (item.get("step_name", "") for item in failed_execution.get("step_results", []) if item.get("status") == "FAIL"),
+            failed_execution.get("execution_name", case_data["case_id"]),
+        )
+        timestamp = f"{case_data['context']['timestamp']}_{failed_execution['sequence']:02d}"
+        saved_paths = self.driver.capture_failure_artifacts(
+            case_name=failed_execution["execution_id"],
+            step_name=failed_step,
+            timestamp=timestamp,
+        )
+        failed_execution.setdefault("artifact_paths", [])
+        failed_execution["artifact_paths"].extend(str(path) for path in saved_paths)
+        result.setdefault("artifact_paths", [])
+        result["artifact_paths"].extend(str(path) for path in saved_paths)
+
+    def is_environment_ready(self) -> bool:
+        if self.driver.app is None or self.driver.main_window_wrapper is None:
+            return False
+        try:
+            top_window = self.driver.top_window()
+            return int(top_window.handle) == int(self.driver.main_window_wrapper.handle)
+        except Exception:
+            return False
 
     def _run_execution(
         self,
@@ -223,26 +319,26 @@ class FormalCaseRunner:
 
     def _build_execution_chain(self, case_data: dict[str, Any], execution: dict[str, Any]) -> list[dict[str, Any]]:
         working_chain = deepcopy(case_data["module_chain"])
-        variant = case_data.get("variant")
-        for entry in working_chain:
-            entry.setdefault("params", {})
-            if execution.get("variant_value") is not None:
-                entry["params"]["variant_value"] = execution["variant_value"]
-            if variant and entry["module"] == variant["module"]:
-                entry["params"][variant["param"]] = execution["variant_value"]
-        return working_chain
+        execution_context = dict(case_data["context"])
+        for item in execution.get("variant_params", []):
+            execution_context[item["param"]] = item["value"]
+            execution_context[item["param_label"]] = item["value"]
+        if len(execution.get("variant_params", [])) == 1:
+            only_value = execution["variant_params"][0]["value"]
+            execution_context["variant_value"] = only_value
+            execution_context["变参值"] = only_value
+        return self._resolve_execution_payload(working_chain, execution_context)
 
     def _build_execution_plan(self, case_data: dict[str, Any]) -> list[dict[str, Any]]:
         variant = case_data.get("variant")
-        variant_values = variant["values"] if variant else [None]
+        variant_rows = variant["values"] if variant else [None]
         loop_count = case_data.get("loop_count", 1)
         plan: list[dict[str, Any]] = []
         sequence = 1
-        for variant_index, variant_value in enumerate(variant_values, start=1):
+        for variant_index, variant_row in enumerate(variant_rows, start=1):
+            variant_params = variant_row["display_values"] if variant_row else []
             for loop_index in range(1, loop_count + 1):
-                labels: list[str] = []
-                if variant:
-                    labels.append(f"{variant['param_label']}={variant_value}")
+                labels = [f"{item['param_label']}={item['value']}" for item in variant_params]
                 if loop_count > 1:
                     labels.append(f"第{loop_index}轮")
                 suffix = " | ".join(labels)
@@ -256,15 +352,13 @@ class FormalCaseRunner:
                         "variant": {
                             "module": variant["module"],
                             "module_label": variant["module_label"],
-                            "param": variant["param"],
-                            "param_label": variant["param_label"],
-                            "value": variant_value,
+                            "params": variant_params,
                             "index": variant_index,
-                            "total": len(variant_values),
+                            "total": len(variant_rows),
                         }
                         if variant
                         else None,
-                        "variant_value": variant_value,
+                        "variant_params": variant_params,
                     }
                 )
                 sequence += 1
@@ -294,6 +388,31 @@ class FormalCaseRunner:
                 }
             )
         return snapshots
+
+    def _resolve_execution_payload(self, payload, context: dict[str, Any]):
+        if isinstance(payload, dict):
+            return {key: self._resolve_execution_payload(value, context) for key, value in payload.items()}
+        if isinstance(payload, list):
+            return [self._resolve_execution_payload(item, context) for item in payload]
+        if isinstance(payload, str):
+            return self._resolve_execution_text(payload, context)
+        return payload
+
+    @staticmethod
+    def _resolve_execution_text(template: str, context: dict[str, Any]) -> str:
+        pattern = re.compile(r"\$\{([^}]+)\}")
+
+        def replace(match):
+            raw_key = match.group(1)
+            key = CONTEXT_KEY_ALIASES.get(raw_key, raw_key)
+            if key not in context:
+                raise KeyError(f"未定义变量：{raw_key}")
+            value = context[key]
+            if isinstance(value, list):
+                raise TypeError(f"变量 {raw_key} 是列表，不能直接作为单个文本替换。")
+            return str(value)
+
+        return pattern.sub(replace, template)
 
     @staticmethod
     def _stringify_param_value(value: Any) -> str:
@@ -398,7 +517,7 @@ class FormalCaseRunner:
             "module_chain_labels": case_data.get("module_chain_labels", []),
             "variant": case_data.get("variant"),
             "loop_count": case_data.get("loop_count", 1),
-            "stop_on_failure": case_data.get("stop_on_failure", True),
+            "stop_on_failure": case_data.get("stop_on_failure", False),
             "passed": status == "PASS",
             "status": status,
             "context": case_data["context"],
@@ -417,8 +536,8 @@ class FormalCaseRunner:
             },
             "module_results": execution_results[0]["module_results"] if len(execution_results) == 1 else [],
             "error_summary": first_abnormal["error_summary"] if first_abnormal else "",
-            "error_detail": first_abnormal["error_detail"] if first_abnormal else "",
-            "failure": first_abnormal["failure"] if first_abnormal else {},
+            "error_detail": first_abnormal.get("error_detail", "") if first_abnormal else "",
+            "failure": first_abnormal.get("failure", {}) if first_abnormal else {},
             "artifact_paths": artifact_paths,
             "environment": {
                 "app_path": str(APP_PATH),

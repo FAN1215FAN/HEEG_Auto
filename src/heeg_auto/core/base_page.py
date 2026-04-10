@@ -1,7 +1,8 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import re
 import time
+from typing import Any
 
 from pywinauto.findwindows import ElementNotFoundError
 
@@ -16,7 +17,6 @@ class BasePage:
 
     @staticmethod
     def _criteria(locator: dict) -> dict:
-        # 元素清单里允许保留 label 等说明性字段，但运行时只把真正的定位字段传给 UIA。
         criteria = {
             key: value
             for key, value in locator.items()
@@ -136,7 +136,7 @@ class BasePage:
                                 fallback = self._find_in_descendants(root, candidate)
                                 if fallback is not None:
                                     return fallback
-                    except Exception as exc:  # pragma: no cover
+                    except Exception as exc:
                         last_error = exc
             time.sleep(0.5)
 
@@ -146,6 +146,24 @@ class BasePage:
         control = self.find(locator)
         self.logger.info("Click control: %s", locator)
         control.click_input()
+        time.sleep(ACTION_PAUSE_SECONDS)
+
+    def double_click(self, locator: dict) -> None:
+        control = self.find(locator)
+        self.logger.info("Double click control: %s", locator)
+        try:
+            control.double_click_input()
+        except Exception:
+            control.click_input(double=True)
+        time.sleep(ACTION_PAUSE_SECONDS)
+
+    def right_click(self, locator: dict) -> None:
+        control = self.find(locator)
+        self.logger.info("Right click control: %s", locator)
+        try:
+            control.right_click_input()
+        except Exception:
+            control.click_input(button="right")
         time.sleep(ACTION_PAUSE_SECONDS)
 
     def input_text(self, locator: dict, value: str) -> None:
@@ -177,6 +195,47 @@ class BasePage:
         self.logger.info("Select radio: %s", locator)
         control.click_input()
         time.sleep(ACTION_PAUSE_SECONDS)
+
+    def set_checkbox(self, locator: dict, value: Any) -> None:
+        control = self.find(locator)
+        expected = self._normalize_checkbox_value(value)
+        current = self._checkbox_state(control)
+        self.logger.info("Set checkbox %s -> %s (current=%s)", locator, expected, current)
+        if current is None:
+            control.click_input()
+        elif current != expected:
+            control.click_input()
+        if self._checkbox_state(control) not in {None, expected}:
+            raise AssertionError(f"Checkbox state did not change as expected: {locator} -> {expected}")
+        time.sleep(ACTION_PAUSE_SECONDS)
+
+    @staticmethod
+    def _normalize_checkbox_value(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized in {"true", "1", "yes", "y", "是", "选中", "勾选", "开启", "开"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "否", "未选中", "取消勾选", "关闭", "关"}:
+            return False
+        raise ValueError(f"无法识别的 CheckBox 值：{value}")
+
+    @staticmethod
+    def _checkbox_state(control) -> bool | None:
+        for getter in (
+            lambda: control.get_toggle_state(),
+            lambda: control.get_check_state(),
+            lambda: control.toggle_state(),
+        ):
+            try:
+                state = getter()
+            except Exception:
+                continue
+            if state in {0, False}:
+                return False
+            if state in {1, True, 2}:
+                return True
+        return None
 
     def wait_closed(self, locator: dict, timeout: int = DEFAULT_TIMEOUT) -> None:
         criteria = self._criteria(locator)

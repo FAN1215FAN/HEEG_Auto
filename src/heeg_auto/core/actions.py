@@ -12,12 +12,20 @@ ACTION_ALIASES = {
     "启动应用": "launch_app",
     "click": "click",
     "单击": "click",
+    "点击": "click",
+    "double_click": "double_click",
+    "双击": "double_click",
+    "right_click": "right_click",
+    "右键": "right_click",
     "input_text": "input_text",
     "输入": "input_text",
     "select_combo": "select_combo",
     "下拉选择": "select_combo",
     "select_radio": "select_radio",
     "选择单选": "select_radio",
+    "set_checkbox": "set_checkbox",
+    "设置勾选": "set_checkbox",
+    "设置复选框": "set_checkbox",
     "wait_for_window": "wait_for_window",
     "等待窗口": "wait_for_window",
     "wait_visible": "wait_visible",
@@ -31,6 +39,9 @@ ACTION_ALIASES = {
     "screenshot": "screenshot",
     "截图": "screenshot",
 }
+
+_REUSE_SESSION_VALUES = {"复用已有应用"}
+
 
 class ActionExecutor:
     def __init__(self, driver, logger) -> None:
@@ -52,7 +63,7 @@ class ActionExecutor:
         return locator
 
     def ensure_session(self, exe_path: str | None = None, session_mode: str = "自动") -> str:
-        if session_mode == "复用已有应用":
+        if session_mode in _REUSE_SESSION_VALUES:
             mode = self.driver.reuse_existing(exe_path=exe_path)
         else:
             mode = self.driver.launch(exe_path=exe_path)
@@ -68,8 +79,21 @@ class ActionExecutor:
         page = self._page_for(locator)
         page.click(locator)
 
+    def double_click(self, target, **_: dict) -> None:
+        locator = self.resolve_target(target)
+        page = self._page_for(locator)
+        page.double_click(locator)
+
+    def right_click(self, target, **_: dict) -> None:
+        locator = self.resolve_target(target)
+        page = self._page_for(locator)
+        page.right_click(locator)
+
     def wait_for_window(self, target, timeout: int = DEFAULT_TIMEOUT, **_: dict) -> None:
         locator = self.resolve_target(target, default_page="main")
+        if locator.get("title") and self._is_main_window_locator(locator):
+            self.main_page.assert_text_visible(locator["title"], timeout=timeout)
+            return
         if locator.get("title"):
             self.dialog_page = CreatePatientDialogPage(driver=self.driver, logger=self.logger)
             self.dialog_page.wait_open(marker_text=locator["title"], timeout=timeout)
@@ -101,6 +125,11 @@ class ActionExecutor:
         page = self._page_for(locator)
         page.select_radio(locator)
 
+    def set_checkbox(self, target, value, **_: dict) -> None:
+        locator = self.resolve_target(target)
+        page = self._page_for(locator)
+        page.set_checkbox(locator, value)
+
     def assert_window_closed(self, target, timeout: int = DEFAULT_TIMEOUT, **_: dict) -> None:
         locator = self.resolve_target(target, default_page="main")
         if locator.get("title"):
@@ -128,3 +157,22 @@ class ActionExecutor:
                 self.dialog_page.wait_open()
             return self.dialog_page
         return self.main_page
+
+    def _is_main_window_locator(self, locator: dict) -> bool:
+        title = locator.get("title", "")
+        if not title:
+            return False
+        main_window = getattr(self.driver, "main_window_wrapper", None)
+        if main_window is None:
+            return False
+        for getter in (
+            lambda: main_window.window_text(),
+            lambda: getattr(main_window.element_info, "name", ""),
+        ):
+            try:
+                candidate = getter()
+            except Exception:
+                candidate = ""
+            if candidate == title:
+                return True
+        return False

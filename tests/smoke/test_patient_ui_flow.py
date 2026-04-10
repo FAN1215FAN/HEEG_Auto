@@ -5,14 +5,27 @@ from pathlib import Path
 import pytest
 
 from heeg_auto.runner.formal_case_runner import FormalCaseRunner
-from tests.support.case_catalog import build_case_params
+from heeg_auto.runner.formal_suite_service import FormalSuiteService
+from tests.support.case_catalog import build_case_item_params
+
+
+def _should_execute_formal_ui(pytestconfig) -> bool:
+    return any(
+        [
+            bool(pytestconfig.getoption("--run-ui")),
+            bool(pytestconfig.getoption("--run-formal")),
+            bool((pytestconfig.getoption("--case-id") or "").strip()),
+            bool((pytestconfig.getoption("--case-dir") or "").strip()),
+            bool((pytestconfig.getoption("--case-file") or "").strip()),
+        ]
+    )
 
 
 @pytest.fixture(scope="module")
-def ui_suite_runner():
-    runner = FormalCaseRunner()
-    yield runner
-    runner.driver.close()
+def ui_suite_service(pytestconfig):
+    service = FormalSuiteService(stall_timeout_seconds=int(pytestconfig.getoption("--stall-timeout")))
+    yield service
+    service.finish()
 
 
 def test_case_without_launch_module_attaches_existing_session(monkeypatch):
@@ -43,22 +56,18 @@ def test_case_with_launch_module_does_not_force_extra_attach(monkeypatch):
     assert calls == []
 
 
-@pytest.mark.parametrize("case_file", build_case_params(ui=True))
+@pytest.mark.formal
+@pytest.mark.parametrize("case_item", build_case_item_params(ui=True))
 def test_formal_cases_ui_smoke(
-    case_file: Path,
+    case_item: dict,
     pytestconfig,
     request,
-    ui_suite_runner: FormalCaseRunner,
+    ui_suite_service: FormalSuiteService,
 ):
-    if not pytestconfig.getoption("--run-ui"):
-        pytest.skip("未显式开启真实界面联调，请追加 --run-ui")
+    if not _should_execute_formal_ui(pytestconfig):
+        pytest.skip("未选择正式 case 执行范围，请使用 --case-dir、--case-file、--case-id 或 --run-formal")
 
-    request.node.case_directory = case_file.parent.name
-    result = ui_suite_runner.run_case(
-        case_file,
-        raise_on_failure=False,
-        close_after_run=False,
-        stall_timeout_seconds=int(pytestconfig.getoption("--stall-timeout")),
-    )
+    result = ui_suite_service.run_case_item(case_item)
+    request.node.case_directory = Path(case_item["path"]).parent.name
     request.node.case_result = result
     assert result["passed"] is True
