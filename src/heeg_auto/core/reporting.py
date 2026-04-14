@@ -273,7 +273,7 @@ def _render_suite_case_detail(item: dict[str, Any]) -> str:
           <h3>执行概览</h3>
           <div class="info-grid compact">
             <div><span class="label">目录</span><span>{html.escape(item.get('relative_dir', '-') or '-')}</span></div>
-            <div><span class="label">模块链</span><span>{html.escape(modules)}</span></div>
+            <div><span class="label">执行标签</span><span>{html.escape(modules)}</span></div>
             <div><span class="label">开始时间</span><span>{html.escape(item.get('started_at', '-') or '-')}</span></div>
             <div><span class="label">结束时间</span><span>{html.escape(item.get('finished_at', '-') or '-')}</span></div>
             <div><span class="label">总耗时</span><span>{item.get('duration_seconds', 0)} 秒</span></div>
@@ -325,7 +325,7 @@ def _render_execution_block(execution: dict[str, Any]) -> str:
         detail_sections = "".join(_render_module_result_block(item) for item in module_results)
         detail_title = "模块与断言结果"
     else:
-        detail_sections = _render_v2_step_block(execution)
+        detail_sections = _render_step_result_block(execution)
         detail_title = "步骤与断言结果"
     artifact_html = "".join(
         f'<li><a href="{html.escape(path)}">{html.escape(Path(path).name)}</a></li>' for path in execution.get("artifact_paths", [])
@@ -349,7 +349,7 @@ def _render_execution_block(execution: dict[str, Any]) -> str:
     """
 
 
-def _render_v2_step_block(execution: dict[str, Any]) -> str:
+def _render_step_result_block(execution: dict[str, Any]) -> str:
     visible_steps = _visible_execution_steps(execution)
     if not visible_steps:
         return '<div class="empty">????????????</div>'

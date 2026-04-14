@@ -18,6 +18,14 @@ class _FakeRunner:
         self.should_raise = should_raise
         self.driver = _FakeDriver()
         self.calls: list[Path] = []
+        self.logger = type(
+            "Logger",
+            (),
+            {
+                "info": lambda self, *args, **kwargs: None,
+                "warning": lambda self, *args, **kwargs: None,
+            },
+        )()
 
     def run_case(self, case_path, raise_on_failure=False, close_after_run=False, stall_timeout_seconds=60):
         case_path = Path(case_path)
@@ -144,3 +152,14 @@ def test_execute_suite_and_finish_use_shared_service_resources(monkeypatch):
     assert summary["report_files"]["html_path"] == "artifacts/reports/demo.html"
     assert lifecycle.finished == 1
     assert runner.driver.closed == 1
+
+
+def test_service_accepts_environment_mode():
+    service = FormalSuiteService(
+        runner=_FakeRunner(),
+        close_driver_on_finish=False,
+        environment_mode="reset_per_directory",
+    )
+
+    assert service.environment_mode == "reset_per_directory"
+    assert service.lifecycle.environment_mode == "reset_per_directory"

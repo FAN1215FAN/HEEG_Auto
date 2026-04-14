@@ -5,12 +5,12 @@ ACTION_DEFINITIONS = {
     "launch_app": {
         "label": "启动应用",
         "implementation": "heeg_auto.core.actions.ActionExecutor.launch_app",
-        "parameters": [],
+        "parameters": ["exe_path", "session_mode"],
     },
     "click": {
         "label": "点击",
         "implementation": "heeg_auto.core.actions.ActionExecutor.click",
-        "parameters": ["target"],
+        "parameters": ["target", "window"],
     },
     "double_click": {
         "label": "双击",
@@ -21,6 +21,11 @@ ACTION_DEFINITIONS = {
         "label": "右键",
         "implementation": "heeg_auto.core.actions.ActionExecutor.right_click",
         "parameters": ["target"],
+    },
+    "drag": {
+        "label": "拖动",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.drag",
+        "parameters": ["window"],
     },
     "input_text": {
         "label": "输入",
@@ -38,13 +43,18 @@ ACTION_DEFINITIONS = {
         "parameters": ["target"],
     },
     "set_checkbox": {
-        "label": "设置勾选",
+        "label": "设置复选框",
         "implementation": "heeg_auto.core.actions.ActionExecutor.set_checkbox",
         "parameters": ["target", "value"],
     },
     "wait_for_window": {
         "label": "等待窗口",
         "implementation": "heeg_auto.core.actions.ActionExecutor.wait_for_window",
+        "parameters": ["target", "timeout"],
+    },
+    "wait_visible": {
+        "label": "等待可见",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.wait_visible",
         "parameters": ["target", "timeout"],
     },
     "assert_exists": {
@@ -60,7 +70,17 @@ ACTION_DEFINITIONS = {
     "assert_text_visible": {
         "label": "断言文本可见",
         "implementation": "heeg_auto.core.actions.ActionExecutor.assert_text_visible",
-        "parameters": ["text", "timeout"],
+        "parameters": ["text", "window", "timeout"],
+    },
+    "assert_text_not_visible": {
+        "label": "断言文本不可见",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.assert_text_not_visible",
+        "parameters": ["text", "window", "timeout"],
+    },
+    "assert_latest_clipped_record": {
+        "label": "断言最新剪辑记录",
+        "implementation": "heeg_auto.core.actions.ActionExecutor.assert_latest_clipped_record",
+        "parameters": ["record_name", "expected_duration", "original_duration", "timeout"],
     },
     "screenshot": {
         "label": "截图",
@@ -69,6 +89,4 @@ ACTION_DEFINITIONS = {
     },
 }
 
-ACTION_NAME_MAP = {
-    definition["label"]: action_id for action_id, definition in ACTION_DEFINITIONS.items()
-}
+ACTION_NAME_MAP = {definition["label"]: action_id for action_id, definition in ACTION_DEFINITIONS.items()}

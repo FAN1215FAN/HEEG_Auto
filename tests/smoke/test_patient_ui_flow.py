@@ -23,7 +23,10 @@ def _should_execute_formal_ui(pytestconfig) -> bool:
 
 @pytest.fixture(scope="module")
 def ui_suite_service(pytestconfig):
-    service = FormalSuiteService(stall_timeout_seconds=int(pytestconfig.getoption("--stall-timeout")))
+    service = FormalSuiteService(
+        stall_timeout_seconds=int(pytestconfig.getoption("--stall-timeout")),
+        environment_mode=str(pytestconfig.getoption("--environment-mode")),
+    )
     yield service
     service.finish()
 

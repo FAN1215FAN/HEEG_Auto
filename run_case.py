@@ -8,6 +8,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from heeg_auto.config.settings import DEFAULT_ENVIRONMENT_MODE
 from heeg_auto.runner.formal_suite_service import FormalSuiteService
 from tests.support.case_catalog import build_directory_catalog, load_case_catalog
 
@@ -131,8 +132,9 @@ def main() -> int:
     print("\n本次将运行：")
     for item in selected:
         print(f"- {_format_case_line(item)}")
+    print(f"\n环境模式：{DEFAULT_ENVIRONMENT_MODE}")
 
-    service = FormalSuiteService()
+    service = FormalSuiteService(environment_mode=DEFAULT_ENVIRONMENT_MODE)
     try:
         results = service.execute_suite(selected)
         for result in results:

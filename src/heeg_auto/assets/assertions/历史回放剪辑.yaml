@@ -1,0 +1,46 @@
+断言资产:
+- 断言标识: assertion.history.replay.opened
+  中文名称: 历史回放窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 历史回放窗口
+- 断言标识: assertion.history.replay.closed
+  中文名称: 历史回放窗口已关闭
+  检查项:
+    - 动作: 断言窗口关闭
+      窗口: 历史回放窗口
+- 断言标识: assertion.history.data_clip.opened
+  中文名称: 数据剪辑窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 数据剪辑窗口
+- 断言标识: assertion.history.clip_complete.opened
+  中文名称: 剪辑完成窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 剪辑完成窗口
+- 断言标识: assertion.history.clip_complete.closed
+  中文名称: 剪辑完成窗口已关闭
+  检查项:
+    - 动作: 断言窗口关闭
+      窗口: 剪辑完成窗口
+- 断言标识: assertion.history.clip_segment.generated
+  中文名称: 数据剪辑片段已生成
+  检查项:
+    - 名称: 断言剪辑开始时间
+      动作: 断言文本可见
+      窗口: 数据剪辑窗口
+      文本: ${剪辑开始时间}
+    - 名称: 断言剪辑结束时间
+      动作: 断言文本可见
+      窗口: 数据剪辑窗口
+      文本: ${剪辑结束时间}
+- 断言标识: assertion.main.latest_clip_record
+  中文名称: 主窗口已新增最新剪辑记录
+  检查项:
+    - 名称: 断言主窗口最新首条剪辑记录
+      动作: 断言最新剪辑记录
+      参数:
+        记录名称: ${记录名称}
+        预期时长: ${主窗口新增记录时长}
+        原始时长: ${原始记录时长}

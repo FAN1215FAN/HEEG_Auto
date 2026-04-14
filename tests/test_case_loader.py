@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from heeg_auto.pages.create_patient_dialog import CreatePatientDialogPage
-from heeg_auto.runner.case_loader import FormalCaseLoader
 from heeg_auto.runner.case_resolver import load_case_payload
+from heeg_auto.runner.step_case_loader import StepCaseLoader
 
 
 class _DialogWrapper:
@@ -62,29 +64,29 @@ class _Logger:
         return None
 
 
-def test_real_patient_case_now_uses_v2_structure():
+def test_real_patient_case_now_uses_step_structure():
     payload = load_case_payload("src/heeg_auto/cases/患者检查管理/患者管理/新建患者_正常创建.yaml")
 
-    assert payload["case_format"] == "v2"
+    assert payload["case_format"] == "step"
     assert payload["case_id"] == "患者管理_01"
     assert payload["steps"][0]["button"] == "新增"
     assert payload["steps"][1]["field_params"]["病历号"] == "test123"
     assert payload["steps"][2]["assertions"] == ["创建患者成功"]
 
 
-def test_real_device_case_now_uses_v2_structure():
+def test_real_device_case_now_uses_step_structure():
     payload = load_case_payload("src/heeg_auto/cases/系统设置/设备设置/设备设置循环.yaml")
 
-    assert payload["case_format"] == "v2"
+    assert payload["case_format"] == "step"
     assert payload["case_id"] == "设备设置_02"
     assert payload["loop_count"] == 2
     assert payload["steps"][1]["field_params"]["IP地址1"] == "192.168.1.100"
 
 
-def test_real_device_variant_case_is_v2_and_keeps_multi_param_variant():
-    payload = load_case_payload("src/heeg_auto/cases/系统设置/设备设置/设备设置_V2_采样率校验.yaml")
+def test_real_device_variant_case_keeps_multi_param_variant():
+    payload = load_case_payload("src/heeg_auto/cases/系统设置/设备设置/设备设置_采样率校验.yaml")
 
-    assert payload["case_format"] == "v2"
+    assert payload["case_format"] == "step"
     assert payload["variant"]["params"] == [
         {"param": "device_type", "param_label": "设备类型"},
         {"param": "sample_rate", "param_label": "采样率"},
@@ -97,73 +99,47 @@ def test_real_device_variant_case_is_v2_and_keeps_multi_param_variant():
     }
 
 
-def test_loader_supports_multi_param_variant_rows_with_parentheses_syntax(tmp_path):
-    case_file = tmp_path / "multi_variant.yaml"
+def test_loader_supports_multi_param_variant_rows_with_parentheses_syntax(tmp_path: Path):
+    case_file = tmp_path / "step_case.yaml"
     case_file.write_text(
         """
-用例编号: TC_DEVICE_001
+用例编号: STEP_DEVICE_001
 用例名称: 设备设置_多参数变参
 变参:
-  模块: 设备设置
   参数: 设备类型, 采样率, 设备增益
   候选值:
     - (Neusen HEEG,1000,6)
     - (Neusen U32,2000,8)
-模块链:
-  - 模块: 设备设置
+步骤:
+  - 名称: 填写设备设置表单
+    窗口: 设备设置
     参数:
       设备类型: ${设备类型}
       采样率: ${采样率}
       设备增益: ${设备增益}
       IP地址: 192.168.1.123
-    断言组: 设置成功
 """.strip(),
         encoding="utf-8",
     )
 
-    payload = FormalCaseLoader().load(case_file)
+    payload = StepCaseLoader().load(case_file)
 
-    assert payload["variant"] == {
-        "module": "device.settings",
-        "module_label": "设备设置",
-        "params": [
-            {"param": "device_type", "param_label": "设备类型"},
-            {"param": "sample_rate", "param_label": "采样率"},
-            {"param": "gain_value", "param_label": "设备增益"},
-        ],
-        "values": [
-            {
-                "mapping": {
-                    "device_type": "Neusen HEEG",
-                    "sample_rate": "1000",
-                    "gain_value": "6",
-                },
-                "display_values": [
-                    {"param": "device_type", "param_label": "设备类型", "value": "Neusen HEEG"},
-                    {"param": "sample_rate", "param_label": "采样率", "value": "1000"},
-                    {"param": "gain_value", "param_label": "设备增益", "value": "6"},
-                ],
-            },
-            {
-                "mapping": {
-                    "device_type": "Neusen U32",
-                    "sample_rate": "2000",
-                    "gain_value": "8",
-                },
-                "display_values": [
-                    {"param": "device_type", "param_label": "设备类型", "value": "Neusen U32"},
-                    {"param": "sample_rate", "param_label": "采样率", "value": "2000"},
-                    {"param": "gain_value", "param_label": "设备增益", "value": "8"},
-                ],
-            },
-        ],
+    assert payload["variant"]["params"] == [
+        {"param": "device_type", "param_label": "设备类型"},
+        {"param": "sample_rate", "param_label": "采样率"},
+        {"param": "gain_value", "param_label": "设备增益"},
+    ]
+    assert payload["variant"]["values"][1]["mapping"] == {
+        "device_type": "Neusen U32",
+        "sample_rate": "2000",
+        "gain_value": "8",
     }
-    assert payload["module_chain"][0]["params"]["device_type"] == "${设备类型}"
-    assert payload["module_chain"][0]["params"]["sample_rate"] == "${采样率}"
-    assert payload["module_chain"][0]["params"]["gain_value"] == "${设备增益}"
+    assert payload["steps"][0]["field_params"]["设备类型"] == "${设备类型}"
+    assert payload["steps"][0]["field_params"]["采样率"] == "${采样率}"
+    assert payload["steps"][0]["field_params"]["设备增益"] == "${设备增益}"
 
 
-def test_loader_rejects_duplicate_yaml_keys(tmp_path):
+def test_loader_rejects_duplicate_yaml_keys(tmp_path: Path):
     case_file = tmp_path / "duplicate.yaml"
     case_file.write_text(
         """
@@ -171,8 +147,9 @@ def test_loader_rejects_duplicate_yaml_keys(tmp_path):
 用例名称: 重复键
 标签:
   - smoke
-模块链:
-  - 模块: 设备设置
+步骤:
+  - 名称: 填写
+    窗口: 设备设置
     参数:
       采样率: 1000
       采样率: 2000
@@ -181,31 +158,31 @@ def test_loader_rejects_duplicate_yaml_keys(tmp_path):
     )
 
     with pytest.raises(ValueError, match="重复键"):
-        FormalCaseLoader().load(case_file)
+        StepCaseLoader().load(case_file)
 
 
-def test_loader_preserves_actual_double_quote_content_with_single_quote_wrapper(tmp_path):
+def test_loader_preserves_actual_double_quote_content_with_single_quote_wrapper(tmp_path: Path):
     case_file = tmp_path / "quoted.yaml"
     case_file.write_text(
         """
 用例编号: TC_QUOTE_001
 用例名称: 双引号输入
-模块链:
-  - 模块: 新建患者
+步骤:
+  - 名称: 填写患者表单
+    窗口: 新建患者
     参数:
       患者姓名: 张三
       病历号: '"123"'
-    断言组: 创建成功
 """.strip(),
         encoding="utf-8",
     )
 
-    payload = FormalCaseLoader().load(case_file)
+    payload = StepCaseLoader().load(case_file)
 
-    assert payload["module_chain"][0]["params"]["patient_id"] == '"123"'
+    assert payload["steps"][0]["field_params"]["病历号"] == '"123"'
 
 
-def test_loader_supports_loop_count_and_stop_on_failure_flags(tmp_path):
+def test_loader_supports_loop_count_and_stop_on_failure_flags(tmp_path: Path):
     case_file = tmp_path / "loop.yaml"
     case_file.write_text(
         """
@@ -213,15 +190,16 @@ def test_loader_supports_loop_count_and_stop_on_failure_flags(tmp_path):
 用例名称: 循环
 循环次数: 3
 失败即停: 是
-模块链:
-  - 模块: 启动软件
+步骤:
+  - 名称: 启动软件
+    动作: 启动应用
     参数:
       会话模式: 自动
 """.strip(),
         encoding="utf-8",
     )
 
-    payload = FormalCaseLoader().load(case_file)
+    payload = StepCaseLoader().load(case_file)
 
     assert payload["loop_count"] == 3
     assert payload["stop_on_failure"] is True

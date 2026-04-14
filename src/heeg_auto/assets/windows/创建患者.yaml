@@ -1,0 +1,9 @@
+窗口资产:
+- 窗口标识: dialog.patient.create
+  资产类型: 窗口
+  中文名称: 创建患者
+  所属窗口: 创建患者
+  ControlType: Window
+  Name: 创建患者
+  ClassName: Window
+  是否唯一: 是

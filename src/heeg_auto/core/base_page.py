@@ -4,6 +4,7 @@ import re
 import time
 from typing import Any
 
+from pywinauto import mouse
 from pywinauto.findwindows import ElementNotFoundError
 
 from heeg_auto.config.settings import ACTION_PAUSE_SECONDS, DEFAULT_TIMEOUT
@@ -20,7 +21,7 @@ class BasePage:
         criteria = {
             key: value
             for key, value in locator.items()
-            if key not in {"page", "label", "module", "module_label", "description", "aliases"}
+            if key not in {"page", "label", "module", "module_label", "description", "aliases", "interaction_calibration"}
         }
         if "automation_id" in criteria:
             criteria["auto_id"] = criteria.pop("automation_id")
@@ -55,7 +56,21 @@ class BasePage:
             candidates.append(candidate)
 
         push(root)
+        if self.root is not None:
+            main_window = getattr(self.driver, "main_window", None)
+            main_wrapper = getattr(self.driver, "main_window_wrapper", None)
+            root_handle = getattr(root, "handle", None)
+            main_handles = {getattr(main_window, "handle", None), getattr(main_wrapper, "handle", None)}
+            if root_handle not in main_handles:
+                return [self.root]
         push(getattr(self.driver, "main_window_wrapper", None))
+        app = getattr(self.driver, "app", None)
+        if app is not None:
+            try:
+                for candidate in app.windows():
+                    push(candidate)
+            except Exception:
+                pass
         for getter in (self.driver.top_window, lambda: self.driver.desktop.top_window()):
             try:
                 push(getter())
@@ -121,6 +136,15 @@ class BasePage:
         last_error = None
 
         while time.time() < deadline:
+            for candidate in self._criteria_candidates(criteria):
+                if candidate.get("control_type") == "Window":
+                    try:
+                        if self.driver.app is not None:
+                            window_spec = self.driver.app.window(**candidate)
+                            if window_spec.exists(timeout=0.5):
+                                return window_spec.wrapper_object()
+                    except Exception as exc:
+                        last_error = exc
             for root in self._root_candidates(locator):
                 for candidate in self._criteria_candidates(criteria):
                     try:
@@ -130,7 +154,11 @@ class BasePage:
                                 return window_spec
                         else:
                             try:
-                                return root.child_window(**candidate).wrapper_object()
+                                if self._matches_candidate(root, candidate):
+                                    return root
+                                if hasattr(root, "child_window"):
+                                    return root.child_window(**candidate).wrapper_object()
+                                raise AttributeError(f"{type(root).__name__} object has no attribute 'child_window'")
                             except Exception as exc:
                                 last_error = exc
                                 fallback = self._find_in_descendants(root, candidate)
@@ -141,6 +169,30 @@ class BasePage:
             time.sleep(0.5)
 
         raise ElementNotFoundError(f"Unable to find control {criteria}: {last_error}")
+
+    def find_all(self, locator: dict) -> list:
+        criteria = self._criteria(locator)
+        results = []
+        seen_handles: set[int | None] = set()
+        for root in self._root_candidates(locator):
+            if root is None:
+                continue
+            try:
+                descendants = root.descendants()
+            except Exception:
+                descendants = []
+            for descendant in descendants:
+                try:
+                    if not self._matches_candidate(descendant, criteria):
+                        continue
+                except Exception:
+                    continue
+                handle = getattr(descendant, "handle", None)
+                if handle in seen_handles:
+                    continue
+                seen_handles.add(handle)
+                results.append(descendant)
+        return results
 
     def click(self, locator: dict) -> None:
         control = self.find(locator)
@@ -165,6 +217,35 @@ class BasePage:
         except Exception:
             control.click_input(button="right")
         time.sleep(ACTION_PAUSE_SECONDS)
+
+    def click_point(self, x: int, y: int, button: str = "left", double: bool = False) -> None:
+        self.logger.info("Click point: button=%s double=%s coords=(%s,%s)", button, double, x, y)
+        if double:
+            mouse.double_click(button=button, coords=(x, y))
+        elif button == "right":
+            mouse.right_click(coords=(x, y))
+        else:
+            mouse.click(button=button, coords=(x, y))
+        time.sleep(ACTION_PAUSE_SECONDS)
+
+    def drag_point(self, start_x: int, start_y: int, end_x: int, end_y: int, button: str = "left") -> None:
+        self.logger.info(
+            "Drag point: button=%s start=(%s,%s) end=(%s,%s)",
+            button,
+            start_x,
+            start_y,
+            end_x,
+            end_y,
+        )
+        mouse.press(button=button, coords=(start_x, start_y))
+        mouse.move(coords=(end_x, end_y))
+        mouse.release(button=button, coords=(end_x, end_y))
+        time.sleep(ACTION_PAUSE_SECONDS)
+
+    @staticmethod
+    def rectangle_from_wrapper(wrapper) -> tuple[int, int, int, int]:
+        rect = wrapper.rectangle()
+        return int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)
 
     def input_text(self, locator: dict, value: str) -> None:
         control = self.find(locator)
@@ -216,9 +297,9 @@ class BasePage:
         normalized = str(value).strip().lower()
         if normalized in {"true", "1", "yes", "y", "是", "选中", "勾选", "开启", "开"}:
             return True
-        if normalized in {"false", "0", "no", "n", "否", "未选中", "取消勾选", "关闭", "关"}:
+        if normalized in {"false", "0", "no", "n", "否", "未选中", "取消勾选", "取消选中", "关闭", "关"}:
             return False
-        raise ValueError(f"无法识别的 CheckBox 值：{value}")
+        raise ValueError(f"无法解析 CheckBox 目标值: {value}")
 
     @staticmethod
     def _checkbox_state(control) -> bool | None:
@@ -240,7 +321,7 @@ class BasePage:
     def wait_closed(self, locator: dict, timeout: int = DEFAULT_TIMEOUT) -> None:
         criteria = self._criteria(locator)
         if self.root is not None:
-            raise RuntimeError("wait_closed is only intended for top level windows.")
+            raise RuntimeError("wait_closed 只用于顶层窗口。")
 
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -251,7 +332,7 @@ class BasePage:
             except Exception:
                 return
             time.sleep(0.5)
-        raise TimeoutError(f"Window still exists after {timeout}s: {criteria}")
+        raise TimeoutError(f"窗口在 {timeout}s 后仍未关闭: {criteria}")
 
     @staticmethod
     def _visible_text_from_wrapper(wrapper) -> str:
@@ -273,28 +354,45 @@ class BasePage:
         return ""
 
     def _text_search_roots(self):
+        if self.root is not None:
+            return [self.root]
+
         roots = []
+
+        def push(candidate):
+            if candidate is None:
+                return
+            if hasattr(candidate, "wrapper_object"):
+                try:
+                    candidate = candidate.wrapper_object()
+                except Exception:
+                    return
+            candidate_handle = getattr(candidate, "handle", None)
+            if any(getattr(root, "handle", None) == candidate_handle for root in roots):
+                return
+            roots.append(candidate)
+
         if self.driver.main_window_wrapper is not None:
-            roots.append(self.driver.main_window_wrapper)
+            push(self.driver.main_window_wrapper)
+        app = getattr(self.driver, "app", None)
+        if app is not None:
+            try:
+                for candidate in app.windows():
+                    push(candidate)
+            except Exception:
+                pass
         for getter in (
             lambda: self.driver.top_window(),
             lambda: self.driver.desktop.top_window(),
         ):
             try:
                 candidate = getter()
-                if hasattr(candidate, "wrapper_object"):
-                    candidate = candidate.wrapper_object()
             except Exception:
                 candidate = None
-            if candidate is None:
-                continue
-            candidate_handle = getattr(candidate, "handle", None)
-            if any(getattr(root, "handle", None) == candidate_handle for root in roots):
-                continue
-            roots.append(candidate)
+            push(candidate)
         return roots
 
-    def _iter_visible_texts_from_roots(self):
+    def iter_visible_texts(self):
         seen = set()
         for root in self._text_search_roots():
             root_handle = getattr(root, "handle", None)
@@ -313,38 +411,27 @@ class BasePage:
                 if candidate:
                     yield candidate
 
+    def collect_visible_texts(self) -> list[str]:
+        return list(self.iter_visible_texts())
+
     def assert_text_visible(self, text: str, timeout: int = DEFAULT_TIMEOUT) -> None:
         deadline = time.time() + timeout
         pattern = re.compile(re.escape(text))
 
         while time.time() < deadline:
-            for candidate in self._iter_visible_texts_from_roots():
+            for candidate in self.iter_visible_texts():
                 if pattern.search(candidate):
-                    self.logger.info("Found expected text: %s", text)
+                    self.logger.info("Matched text '%s' with candidate '%s'", text, candidate)
                     return
             time.sleep(0.5)
-
-        samples = []
-        for candidate in self._iter_visible_texts_from_roots():
-            if candidate not in samples:
-                samples.append(candidate)
-            if len(samples) >= 20:
-                break
-        raise AssertionError(f"Text not visible in current app windows within {timeout}s: {text}. Visible samples: {samples}")
+        raise AssertionError(f"Text not visible after {timeout}s: {text}")
 
     def assert_text_not_visible(self, text: str, timeout: int = DEFAULT_TIMEOUT) -> None:
         deadline = time.time() + timeout
         pattern = re.compile(re.escape(text))
 
         while time.time() < deadline:
-            found = False
-            for candidate in self._iter_visible_texts_from_roots():
-                if pattern.search(candidate):
-                    found = True
-                    break
-            if not found:
-                self.logger.info("Confirmed text disappeared: %s", text)
+            if not any(pattern.search(candidate) for candidate in self.iter_visible_texts()):
                 return
             time.sleep(0.5)
-
-        raise AssertionError(f"Text still visible in current app windows after {timeout}s: {text}")
+        raise AssertionError(f"Text still visible after {timeout}s: {text}")

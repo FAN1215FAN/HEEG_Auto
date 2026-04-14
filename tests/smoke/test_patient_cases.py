@@ -15,7 +15,7 @@ def test_formal_cases_are_loadable(case_file: Path):
 
     assert payload["case_id"]
     assert payload["case_name"]
-    if payload.get('case_format') == 'v2':
+    if payload.get('case_format') == 'step':
         assert payload['steps']
     else:
         assert payload["module_chain"]

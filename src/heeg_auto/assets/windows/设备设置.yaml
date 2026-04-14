@@ -1,0 +1,9 @@
+窗口资产:
+- 窗口标识: dialog.device.settings
+  资产类型: 窗口
+  中文名称: 设备设置
+  所属窗口: 设备设置
+  ControlType: Window
+  Name: 设备设置
+  ClassName: Window
+  是否唯一: 是

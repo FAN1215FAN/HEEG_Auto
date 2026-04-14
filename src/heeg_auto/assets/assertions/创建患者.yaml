@@ -1,0 +1,21 @@
+断言资产:
+- 断言标识: assertion.patient.create.opened
+  中文名称: 创建患者窗口打开
+  检查项:
+    - 动作: 等待窗口
+      窗口: 创建患者
+- 断言标识: assertion.patient.create.closed
+  中文名称: 创建患者页面关闭
+  检查项:
+    - 动作: 断言窗口关闭
+      窗口: 创建患者
+- 断言标识: assertion.patient.create.success
+  中文名称: 创建患者成功
+  检查项:
+    - 动作: 断言窗口关闭
+      窗口: 创建患者
+- 断言标识: assertion.main.window.visible
+  中文名称: 数字脑电采集记录软件窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 数字脑电采集记录软件窗口

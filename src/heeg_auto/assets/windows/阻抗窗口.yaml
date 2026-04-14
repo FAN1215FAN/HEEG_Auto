@@ -1,0 +1,9 @@
+窗口资产:
+- 窗口标识: window.impedance
+  资产类型: 窗口
+  中文名称: 阻抗窗口
+  所属窗口: 阻抗窗口
+  ControlType: Window
+  Name: 阻抗
+  ClassName: Window
+  是否唯一: 是

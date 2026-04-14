@@ -1,0 +1,16 @@
+断言资产:
+- 断言标识: assertion.device.settings.opened
+  中文名称: 设备设置窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 设备设置
+- 断言标识: assertion.device.settings.closed
+  中文名称: 设备设置已关闭
+  检查项:
+    - 动作: 断言窗口关闭
+      窗口: 设备设置
+- 断言标识: assertion.simulator.confirm.opened
+  中文名称: 模拟器确认窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 模拟器确认窗口

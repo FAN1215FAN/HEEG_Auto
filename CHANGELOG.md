@@ -1,26 +1,62 @@
-# Changelog
+# 变更记录
 
-## 2026-04-09
+## 2026-04-14
 
-- formal case 已统一迁移到 V2 步骤式结构，当前仓库中的正式业务 case 全部改为 `步骤 / 窗口 / 参数 / 元素 / 按钮 / 动作 / 断言` 写法。
-- `启动软件.yaml`、患者管理目录 `init.yaml`、设备设置目录 `init.yaml` 已迁为 V2；目录 `cleanup.yaml` 继续保留空支持文件语义。
-- 重写 `src/heeg_auto/v2/asset_store.py`、`src/heeg_auto/v2/case_loader.py`、`src/heeg_auto/v2/executor.py`，清理乱码并补上步骤级上下文回填，支持断言内引用前序填写值。
-- 补齐 `双击 / 右键 / CheckBox` 能力到 `src/heeg_auto/core/base_page.py`、`src/heeg_auto/core/actions.py`、`src/heeg_auto/actions/registry.py`、`src/heeg_auto/core/line_dsl.py` 与 V2 执行器。
-- 重建 V2 资产：窗口资产、元素资产、断言资产改为干净中文口径，并补了患者列表第一行、标题栏关闭按钮、脑电工作模式等治理项。
-- 更新 `README.md`、`docs/架构说明.md`、`docs/目录说明.md`、`docs/运行指南.md`、`docs/V2*.md`、`docs/V2资产总表.md`、`docs/V2资产缺口清单.md`、`docs/维护流程.md`。
-- 重写 `tests/test_v2_asset_store.py`、`tests/test_v2_case_loader.py`、`tests/test_v2_executor.py`、`tests/test_case_loader.py`、`tests/test_case_catalog.py` 和 `tests/support/case_catalog.py`，校正到当前 case 集合与 V2 行为。
+### 历史回放剪辑专题整理
 
-## 2026-04-07
+- 围绕“历史回放_手动数据剪辑”场景完成一轮专项整理，目标从“单条 case 跑通”收敛为“可读、可维护、可复用、测试可自主编写”
+- 历史回放剪辑 case 收敛为“变量集中到 `数据` 段、步骤正文简化、默认点击动作省略、仅保留关键断言”的编写风格
+- 明确 `数据` 段承载记录名称、原始记录时长、剪辑开始时间、剪辑结束时间、主窗口新增记录时长、波形交互比例等场景变量
+- 明确 `名称` 字段技术上不是强制项，但在日志、截图、报告和问题定位上仍建议保留
+- 明确空行不是 YAML 报错根因，真正的问题是错误破坏了步骤列表结构
+- 新增比例读取辅助工具 `run_ratio_picker.py`、`tools/inspectors/pick_top_window_ratio.py`、`src/heeg_auto/core/window_ratio.py`
 
-- 新增 `docs/V1参数设计说明.md`，固化第一版基于 `pytest` 的参数机制与命令行口径。
-- 正式 case 的 `变参` 数据模型升级为“多参数手工枚举参数行”，支持单参数旧写法和多参数括号/逗号行写法并存。
-- `FormalCaseRunner` 改为支持按参数行展开执行，并在执行时按整条 case 作用域解析变参占位符。
-- `失败即停` 的默认值调整为关闭，单 case 内默认改为失败记录后继续后续参数行；若显式声明 `失败即停: 是`，仍保留中断后续轮次能力。
-- 新增 `src/heeg_auto/runner/directory_lifecycle.py`，重新引入目录级 `init.yaml` / `cleanup.yaml` 环境管理机制，并在真实 UI formal 执行中支持按目录初始化、清理和失败后恢复。
-- `pytest` 现已支持 `--run-formal`、`--case-id`、`--case-dir`、`--case-file` 等正式 case 执行参数，并通过 `pytest -h` 可见。
+### 历史回放剪辑问题修复记录
 
-## 2026-04-02
+- 修复目录 `init.yaml` 中会话模式在正式步骤链路中的映射问题，避免首次启动被误判为只能复用已有应用
+- 修复历史回放窗口、剪辑完成弹窗等窗口查找与元素查找的作用域问题
+- 修复主窗口“新增剪辑记录”断言与当前 UIA 结构不适配的问题
+- 在研发补充稳定 `AutomationId` 后，恢复剪辑完成弹窗的稳定窗口断言
+- 真实 UI 路径当前已经验证 `pytest` 与 `run_case.py` 均可跑通该专题 case
 
-- `run_case_suite.py` 改为直接调用 `FormalCaseRunner` 执行所选 case，不再通过 `pytest.main(...)` 间接执行日常正式用例。
-- 报告结果模型升级为多轮执行摘要，新增 `PASS / FAIL / INTERRUPTED / NOT_RUN` 结果统计。
-- `src/heeg_auto/core/reporting.py` 改为输出单一 HTML 报告。
+### 运行时代码收敛
+
+- 正式运行链路收敛为当前步骤式单轨
+- 删除旧模块链相关 loader、runner、目录和测试
+- 正式资产统一进入 `src/heeg_auto/assets/`
+- 补齐目录生命周期基础能力，支持 `reuse_per_suite` 与 `reset_per_directory`
+
+### 文档恢复与重组
+
+- 恢复 [docs/01_主线/项目书.md](docs/01_主线/项目书.md)
+- 恢复 [docs/01_主线/框架收敛方案.md](docs/01_主线/框架收敛方案.md) 的任务、阶段、状态与更新记录
+- 恢复 [docs/01_主线/瘦身迁移清单.md](docs/01_主线/瘦身迁移清单.md) 的阶段化迁移记录
+- 扩写 [docs/01_主线/需求说明.md](docs/01_主线/需求说明.md)
+- 重建 [docs/02_资产规范/资产总表.md](docs/02_资产规范/资产总表.md) 与 [docs/02_资产规范/资产缺口清单.md](docs/02_资产规范/资产缺口清单.md)
+- 恢复 [docs/03_治理/对话纪要.md](docs/03_治理/对话纪要.md) 的关键决策时间线
+- 扩写 `README.md`，恢复文档索引和正式口径说明
+- 删除旧模块时代的 `docs/模板/模块映射模板.md`、`docs/示例/患者创建模块示例.md` 与 `docs/示例/起步骨架/` 示例文件
+- 重写架构、运行、目录、映射、参数、控件、断言、YAML 规范、步骤执行器、维护流程等主文档
+- 新增 [docs/03_治理/文档治理索引.md](docs/03_治理/文档治理索引.md)
+- 将历史回放剪辑的三份专题文档有效内容并回主文档，并删除这三份单独 md
+- 合并 `项目交付说明.md`、`本轮需求调整说明.md`、`变更记录策略.md`
+- 将 docs 收口为 `01_主线 / 02_资产规范 / 03_治理 / 模板` 四层结构
+
+## 2026-04-13
+
+### 历史回放剪辑功能修复
+
+- 调整“剪辑完成”确认逻辑，改为基于当前正文文本的出现与消失进行判断
+- 修复步骤执行参数别名映射，确保启动应用时会话模式和软件路径能够正确传入执行层
+- 修复中文动作别名与步骤解析链中的乱码问题
+- 修复非主窗口图形交互的坐标换算逻辑
+- 新增主窗口“最新剪辑记录”断言能力
+- 围绕历史回放剪辑场景补齐窗口资产、断言资产与专题 case
+
+## 2026-04-10
+
+### 图形交互基础能力补充
+
+- 根据窗口参数表补入主窗口、历史回放、数据剪辑、剪辑完成等一组专题参数
+- 首次补入历史回放剪辑场景所需的窗口、元素、断言资产
+- 为步骤执行层补入图形交互基础能力，支持窗口比例点击、波形比例点击、进度条时间点击与拖动

@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 
 import pytest
-
-from heeg_auto.modules import ModuleStore
 from heeg_auto.runner.case_resolver import load_case_payload
 from heeg_auto.runner.directory_lifecycle import SUPPORT_FILE_NAMES
 
@@ -13,7 +11,7 @@ CASE_ROOT = Path("src/heeg_auto/cases")
 CASE_FILTER_ENV = "HEEG_CASE_IDS"
 CASE_DIR_FILTER_ENV = "HEEG_CASE_DIRS"
 CASE_FILE_FILTER_ENV = "HEEG_CASE_FILE"
-KNOWN_DYNAMIC_MARKS = {"smoke", "patient", "device", "start", "v2"}
+KNOWN_DYNAMIC_MARKS = {"smoke", "patient", "device", "start"}
 
 
 def discover_case_paths() -> list[Path]:
@@ -69,7 +67,7 @@ def _build_plan_label(payload: dict) -> str:
             parts.append(f"变参: {param_labels} / {len(variant['values'])}{unit}")
     if payload.get("loop_count", 1) > 1:
         parts.append(f"循环: {payload['loop_count']}次")
-    if payload.get("case_format") == "v2":
+    if payload.get("case_format") == "step":
         parts.append(f"步骤: {len(payload.get('steps', []))}步")
     return " | ".join(parts)
 
@@ -135,7 +133,7 @@ def load_case_catalog(
                 "variant": payload.get("variant"),
                 "loop_count": payload.get("loop_count", 1),
                 "plan_label": _build_plan_label(payload),
-                "case_format": payload.get("case_format", "v1"),
+                "case_format": payload.get("case_format", "module_chain"),
             }
         )
     items = sorted(discovered, key=lambda item: (item["relative_dir"], item["case_id"], item["relative_path"]))
@@ -206,7 +204,7 @@ def selected_case_file_from_env() -> str | None:
 
 def _build_case_display_id(item: dict) -> str:
     module_chain = " -> ".join(item["module_chain_labels"]) or "-"
-    display_id = f"{item['case_id']} | {item['case_name']} | 目录: {item['relative_dir']} | 模块链: {module_chain}"
+    display_id = f"{item['case_id']} | {item['case_name']} | 目录: {item['relative_dir']} | 执行标签: {module_chain}"
     if item.get("plan_label"):
         display_id = f"{display_id} | {item['plan_label']}"
     return display_id
@@ -214,8 +212,8 @@ def _build_case_display_id(item: dict) -> str:
 
 def _build_case_marks(item: dict, ui: bool = False):
     marks = [getattr(pytest.mark, tag) for tag in item.get("tags", []) if tag in KNOWN_DYNAMIC_MARKS]
-    if item.get("case_format") == "v2":
-        marks.append(pytest.mark.v2)
+    if item.get("case_format") == "step":
+        marks.append(pytest.mark.step)
     if ui:
         marks.extend([pytest.mark.ui, pytest.mark.formal])
     return marks
@@ -240,14 +238,4 @@ def build_case_item_params(ui: bool = False):
         selected_case_file=selected_case_file_from_env(),
     ):
         params.append(pytest.param(item, id=_build_case_display_id(item), marks=_build_case_marks(item, ui=ui)))
-    return params
-
-
-def build_module_params():
-    module_store = ModuleStore()
-    params = []
-    for module_id in sorted(module_store.file_registry):
-        payload = module_store.load(module_id)
-        display_id = f"{payload['module_id']} | {payload['module_label']}"
-        params.append(pytest.param(module_id, id=display_id, marks=[pytest.mark.smoke]))
     return params

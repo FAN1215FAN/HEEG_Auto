@@ -93,6 +93,99 @@ def test_find_falls_back_to_descendants_when_child_window_misses():
     assert wrapper.element_info.control_type == 'Button'
 
 
+def test_find_returns_root_when_wrapper_itself_matches_window_locator():
+    class _WindowWrapper:
+        def __init__(self) -> None:
+            self.handle = 88
+            self.element_info = type(
+                "Info",
+                (),
+                {"name": "历史回放", "automation_id": "", "control_type": "Window", "class_name": "Window"},
+            )()
+
+        def descendants(self):
+            return []
+
+    class _Driver:
+        def __init__(self) -> None:
+            self.main_window = _FakeRoot('main', should_match=False)
+            self.main_window_wrapper = self.main_window
+            self._top = _WindowWrapper()
+            self.app = None
+            self.desktop = type('Desktop', (), {'top_window': lambda self: None})()
+
+        def top_window(self):
+            return self._top
+
+    driver = _Driver()
+    page = BasePage(driver=driver, logger=type('L', (), {'info': lambda *args, **kwargs: None})())
+
+    wrapper = page.find({'title': '历史回放', 'control_type': 'Window', 'class_name': 'Window'}, timeout=1)
+
+    assert wrapper is driver._top
+
+
+def test_find_uses_application_window_for_non_active_top_level_window():
+    target_wrapper = _FakeWrapper(handle=99, automation_id='', control_type='Window', name='历史回放')
+    app_calls: list[dict] = []
+
+    class _WindowSpec:
+        def exists(self, timeout=0.5):
+            return True
+
+        def wrapper_object(self):
+            return target_wrapper
+
+    class _App:
+        def window(self, **criteria):
+            app_calls.append(criteria)
+            return _WindowSpec()
+
+    driver = _FakeDriver()
+    driver.app = _App()
+    driver._top = _FakeRoot('top', should_match=False)
+    page = BasePage(driver=driver, logger=None)
+
+    wrapper = page.find({'title': '历史回放', 'control_type': 'Window', 'class_name': 'Window'}, timeout=1)
+
+    assert wrapper is target_wrapper
+    assert app_calls == [{'title': '历史回放', 'control_type': 'Window', 'class_name': 'Window'}]
+
+
+def test_assert_text_visible_scans_all_application_top_level_windows():
+    popup = _FakeWrapper(handle=101, automation_id='', control_type='Window', name='剪辑完成。')
+
+    class _App:
+        def windows(self):
+            return [popup]
+
+    driver = _FakeDriver()
+    driver.app = _App()
+    driver._top = _FakeRoot('other_app', should_match=False)
+    page = BasePage(driver=driver, logger=type('L', (), {'info': lambda *args, **kwargs: None})())
+
+    page.assert_text_visible('剪辑完成。', timeout=1)
+
+
+def test_find_scans_all_application_top_level_windows_for_controls():
+    class _PopupRoot(_FakeRoot):
+        def descendants(self):
+            return [_FakeWrapper(handle=202, automation_id='OKButton', control_type='Button', name='确定')]
+
+    class _App:
+        def windows(self):
+            return [_PopupRoot('popup')]
+
+    driver = _FakeDriver()
+    driver.app = _App()
+    driver._top = _FakeRoot('other_app', should_match=False)
+    page = BasePage(driver=driver, logger=type('L', (), {'info': lambda *args, **kwargs: None})())
+
+    wrapper = page.find({'automation_id': 'OKButton', 'control_type': 'Button'}, timeout=1)
+
+    assert wrapper.element_info.automation_id == 'OKButton'
+
+
 class _FakeDialogPage:
     def __init__(self) -> None:
         self.root = type("Root", (), {"handle": 123})()

@@ -1,68 +1,75 @@
 # HEEG Auto
 
-HEEG Auto 是一个面向 WPF 上位机软件的 Python + pywinauto 自动化项目。
-当前主线已经切到 V2 步骤式 case，formal case 编写统一采用中文 YAML 的 `步骤` 结构，目录级 `init.yaml` 继续负责启动和环境恢复。
+HEEG Auto 是面向公司 WPF 上位机软件的桌面 UI 自动化工程。当前正式方案已经收敛为 `Python + pywinauto + UIA + pytest`，正式 case 真源为中文步骤式 YAML，正式资产真源为 `windows / elements / assertions`。
 
-## 当前状态
+## 当前正式口径
 
-- 当前 formal case 已统一迁移到 V2 推荐结构。
-- 目录级 `init.yaml` 已改为 V2，负责启动软件和恢复主界面。
-- `cleanup.yaml` 仍保留为目录支持文件，占位清理不承载业务动作。
-- V2 已支持 `点击 / 双击 / 右键 / 输入 / 下拉选择 / 选择单选 / 设置勾选 / 等待窗口 / 断言窗口关闭 / 断言存在 / 断言文本可见`。
-- V2 断言继续采用命名断言，当前以窗口资产、元素资产、断言资产三套 YAML 管理。
+1. 对外不再区分 `V1 / V2`。
+2. 正式 case 只认 `src/heeg_auto/cases/` 下的步骤式 YAML。
+3. 正式资产只认 `src/heeg_auto/assets/`。
+4. `run_case.py` 面向测试日常运行，`pytest` 面向研发治理与 CI。
+5. 环境模式当前支持 `reuse_per_suite` 和 `reset_per_directory`。
 
-## 推荐 V2 结构
+## 当前目标
 
-```yaml
-用例编号:
-用例名称:
-标签:
-变参:
-循环次数:
-失败即停:
-步骤:
-  - 名称:
-    窗口:
-    参数:
-    元素:
-    按钮:
-    动作:
-    断言:
-    超时:
-    可选:
-```
-
-关键约束：
-- 业务 case 不再写启动软件步骤。
-- `窗口` 是当前步骤作用域。
-- `按钮` 走点击简写。
-- `参数` 按元素控件类型自动推断动作。
-- `断言` 继续走命名断言资产。
-
-## 当前 formal case
-
-- [启动软件.yaml](/D:/AI_project/AI_Auto/HEEG_Auto/src/heeg_auto/cases/启动/启动软件.yaml)
-- [新建患者_正常创建.yaml](/D:/AI_project/AI_Auto/HEEG_Auto/src/heeg_auto/cases/患者检查管理/患者管理/新建患者_正常创建.yaml)
-- [新建患者_V2_点击关闭.yaml](/D:/AI_project/AI_Auto/HEEG_Auto/src/heeg_auto/cases/患者检查管理/患者管理/新建患者_V2_点击关闭.yaml)
-- [设备设置循环.yaml](/D:/AI_project/AI_Auto/HEEG_Auto/src/heeg_auto/cases/系统设置/设备设置/设备设置循环.yaml)
-- [设备设置_V2_采样率校验.yaml](/D:/AI_project/AI_Auto/HEEG_Auto/src/heeg_auto/cases/系统设置/设备设置/设备设置_V2_采样率校验.yaml)
+- 让测试同事可以维护正式 case
+- 让研发可以用 `pytest` 跑正式回归
+- 让窗口、元素、断言逐步沉淀成正式资产
+- 让框架在需求持续变化下仍然保持稳定
 
 ## 常用入口
 
-- `python run_demo.py`
-- `python run_case.py`
-- `python -m pytest --run-formal --run-ui -s`
-- `python -m pytest`
-- `python run_inspector.py`
+### 测试日常执行
 
-## 文档索引
+```bash
+python run_case.py
+```
 
-- [架构说明.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/架构说明.md)
-- [目录说明.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/目录说明.md)
-- [运行指南.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/运行指南.md)
-- [V2执行器设计说明.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/V2执行器设计说明.md)
-- [V2窗口资产规范.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/V2窗口资产规范.md)
-- [V2元素资产规范.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/V2元素资产规范.md)
-- [V2断言资产规范.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/V2断言资产规范.md)
-- [V2资产总表.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/V2资产总表.md)
-- [V2资产缺口清单.md](/D:/AI_project/AI_Auto/HEEG_Auto/docs/V2资产缺口清单.md)
+### 演示入口
+
+```bash
+python run_demo.py
+```
+
+### UI 检查辅助入口
+
+```bash
+python run_inspector.py
+python run_ratio_picker.py
+```
+
+### pytest 执行
+
+```bash
+python -m pytest
+python -m pytest --run-formal --run-ui -s
+python -m pytest --run-formal --run-ui --environment-mode reuse_per_suite -s
+python -m pytest --run-formal --run-ui --environment-mode reset_per_directory -s
+```
+
+## 正式目录
+
+- `src/heeg_auto/assets/`：正式窗口、元素、断言资产
+- `src/heeg_auto/cases/`：正式步骤式 case
+- `src/heeg_auto/runner/`：正式 case 执行链路
+- `src/heeg_auto/core/`：底层驱动、动作、报告等基础能力
+- `tests/`：治理测试和 smoke 测试
+- `docs/`：项目文档，当前分为主线、资产规范、治理、模板四层
+
+## 先看哪些文档
+
+1. [项目书](docs/01_主线/项目书.md)
+2. [框架收敛方案](docs/01_主线/框架收敛方案.md)
+3. [瘦身迁移清单](docs/01_主线/瘦身迁移清单.md)
+4. [需求说明](docs/01_主线/需求说明.md)
+5. [运行指南](docs/01_主线/运行指南.md)
+6. [资产总表](docs/02_资产规范/资产总表.md)
+7. [资产缺口清单](docs/02_资产规范/资产缺口清单.md)
+8. [对话纪要](docs/03_治理/对话纪要.md)
+9. [文档治理索引](docs/03_治理/文档治理索引.md)
+
+## 当前注意事项
+
+1. 主文档后续采用持续更新，不再压缩式重写。
+2. `docs` 现已按“主线 / 资产规范 / 治理 / 模板”分组。
+3. 图形和波形类断言仍是当前最需要继续建设的能力。

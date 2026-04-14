@@ -1,0 +1,11 @@
+断言资产:
+- 断言标识: assertion.realtime.window.opened
+  中文名称: 实时采集窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 实时采集窗口
+- 断言标识: assertion.impedance.window.opened
+  中文名称: 阻抗窗口已出现
+  检查项:
+    - 动作: 等待窗口
+      窗口: 阻抗窗口

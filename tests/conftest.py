@@ -457,6 +457,12 @@ def pytest_addoption(parser):
         default="",
         help="按单个正式 case YAML 文件筛选执行",
     )
+    project_group.addoption(
+        "--environment-mode",
+        action="store",
+        default="reuse_per_suite",
+        help="环境生命周期模式：reuse_per_suite 或 reset_per_directory",
+    )
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -472,7 +478,7 @@ def pytest_cmdline_main(config):
 def pytest_configure(config):
     ensure_artifact_dirs()
     config.addinivalue_line("markers", "formal: marks formal YAML case execution entry")
-    config.addinivalue_line("markers", "v2: marks v2 step-based case tests")
+    config.addinivalue_line("markers", "step: marks step-based case tests")
 
     formal_requested = _is_formal_requested(config)
     case_id = (config.getoption("--case-id") or "").strip()

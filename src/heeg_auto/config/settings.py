@@ -37,11 +37,10 @@ INSPECTOR_DIR = ARTIFACTS_DIR / "inspectors"
 LOG_DIR = ARTIFACTS_DIR / "logs"
 REPORT_DIR = ARTIFACTS_DIR / "reports"
 SCREENSHOT_DIR = ARTIFACTS_DIR / "screenshots"
-ELEMENTS_DIR = PROJECT_ROOT / "src" / "heeg_auto" / "elements"
-MODULES_DIR = PROJECT_ROOT / "src" / "heeg_auto" / "modules"
-LEGACY_DIR = PROJECT_ROOT / "src" / "heeg_auto" / "legacy"
+CASES_DIR = PROJECT_ROOT / "src" / "heeg_auto" / "cases"
+DEFAULT_ENVIRONMENT_MODE = "reuse_per_suite"
 
-DEFAULT_CASE_PATH = PROJECT_ROOT / "src" / "heeg_auto" / "cases" / "患者检查管理" / "患者管理" / "1新建患者_正常创建.yaml"
+DEFAULT_CASE_PATH = CASES_DIR / "患者检查管理" / "患者管理" / "新建患者_正常创建.yaml"
 
 
 def ensure_artifact_dirs() -> None:
