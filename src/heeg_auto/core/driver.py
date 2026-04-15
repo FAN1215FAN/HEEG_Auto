@@ -11,6 +11,7 @@ from heeg_auto.config.settings import (
     ACTION_PAUSE_SECONDS,
     APP_PATH,
     MAIN_WINDOW_TIMEOUT,
+    MAIN_WINDOW_READY_TIMEOUT,
     SCREENSHOT_DIR,
     UIA_BACKEND,
     ensure_artifact_dirs,
@@ -41,7 +42,7 @@ class UIADriver:
         self.app = Application(backend=UIA_BACKEND).start(str(app_path), wait_for_idle=False)
         self._wait_for_startup_stable()
         self._bind_main_window()
-        self.main_window_wrapper.set_focus()
+        self._focus_main_window()
         time.sleep(ACTION_PAUSE_SECONDS)
         return "launch"
 
@@ -62,7 +63,7 @@ class UIADriver:
         try:
             self.app = Application(backend=UIA_BACKEND).connect(path=str(app_path), timeout=5)
             self._bind_main_window()
-            self.main_window_wrapper.set_focus()
+            self._focus_main_window()
             time.sleep(ACTION_PAUSE_SECONDS)
             return True
         except Exception:
@@ -80,8 +81,19 @@ class UIADriver:
 
     def _bind_main_window(self) -> None:
         self.main_window = self._wait_for_main_window()
-        self.main_window.wait("ready", timeout=MAIN_WINDOW_TIMEOUT)
+        try:
+            self.main_window.wait("ready", timeout=MAIN_WINDOW_READY_TIMEOUT)
+        except Exception as exc:
+            self.logger.warning("Main window ready wait skipped after timeout: %s", exc)
         self.main_window_wrapper = self.main_window.wrapper_object()
+
+    def _focus_main_window(self) -> None:
+        if self.main_window_wrapper is None:
+            return
+        try:
+            self.main_window_wrapper.set_focus()
+        except Exception as exc:
+            self.logger.warning("Unable to focus main window, continue without focus: %s", exc)
 
     def _wait_for_main_window(self):
         deadline = time.time() + MAIN_WINDOW_TIMEOUT

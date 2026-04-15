@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from heeg_auto.assets.asset_store import AssetStore
+from heeg_auto.assets import asset_store as asset_store_module
 
 
 def test_asset_store_loads_clean_chinese_assets(tmp_path: Path):
@@ -112,3 +113,11 @@ def test_asset_store_keeps_window_title_empty_when_automation_id_is_present(tmp_
 
     assert window["automation_id"] == "MessageBoxTip"
     assert "title" not in window
+
+
+def test_asset_store_defaults_to_repo_assets_directory():
+    store = AssetStore()
+
+    assert store.root_dir == asset_store_module.DEFAULT_ASSET_ROOT
+    assert (store.root_dir / "windows").exists()
+    assert "window.main.record_software" in store.load_windows()

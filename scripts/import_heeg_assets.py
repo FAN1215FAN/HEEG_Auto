@@ -8,8 +8,8 @@ import yaml
 from openpyxl import load_workbook
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-ASSET_ROOT = PROJECT_ROOT / 'src' / 'heeg_auto' / 'v2' / 'assets'
-DOCS_ROOT = PROJECT_ROOT / 'docs'
+ASSET_ROOT = PROJECT_ROOT / 'src' / 'heeg_auto' / 'assets'
+DOCS_ROOT = PROJECT_ROOT / 'docs' / '02_资产规范'
 
 WINDOW_ID_MAP = {
     '患者主界面': 'main.patient_home',
@@ -149,9 +149,9 @@ def dump_yaml(path: Path, top_key: str, rows: list[dict[str, Any]]) -> None:
 
 
 def write_docs(window_assets: list[dict[str, Any]], element_assets: list[dict[str, Any]], missing_automation: list[dict[str, Any]]) -> None:
-    docs_path = DOCS_ROOT / 'V2资产总表.md'
+    docs_path = DOCS_ROOT / '资产总表.md'
     lines = [
-        '# V2资产总表',
+        '# 资产总表',
         '',
         f'- 窗口资产数：{len(window_assets)}',
         f'- 元素资产数：{len(element_assets)}',
@@ -182,9 +182,9 @@ def write_docs(window_assets: list[dict[str, Any]], element_assets: list[dict[st
         lines.append('')
     docs_path.write_text('\n'.join(lines), encoding='utf-8')
 
-    gap_path = DOCS_ROOT / 'V2资产缺口清单.md'
+    gap_path = DOCS_ROOT / '资产缺口清单.md'
     gap_lines = [
-        '# V2资产缺口清单',
+        '# 资产缺口清单',
         '',
         '以下元素缺少 `AutomationId`，建议优先让研发补齐：',
         '',
@@ -199,7 +199,7 @@ def write_docs(window_assets: list[dict[str, Any]], element_assets: list[dict[st
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Import HEEG Excel label workbook into V2 YAML assets.')
+    parser = argparse.ArgumentParser(description='Import HEEG Excel label workbook into formal YAML assets.')
     parser.add_argument('workbook', type=Path, help='Path to the Excel workbook.')
     args = parser.parse_args()
 

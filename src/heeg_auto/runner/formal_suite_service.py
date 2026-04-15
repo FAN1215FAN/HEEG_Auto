@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from heeg_auto.config.settings import DEFAULT_ENVIRONMENT_MODE
+from heeg_auto.config.settings import DEFAULT_ENVIRONMENT_MODE, DEFAULT_STALL_TIMEOUT
 from heeg_auto.core.reporting import generate_suite_reports
 from heeg_auto.runner.directory_lifecycle import DirectoryLifecycleManager
 from heeg_auto.runner.formal_case_runner import FormalCaseRunner
@@ -18,7 +18,7 @@ class FormalSuiteService:
         self,
         runner: FormalCaseRunner | None = None,
         lifecycle: DirectoryLifecycleManager | None = None,
-        stall_timeout_seconds: int = 60,
+        stall_timeout_seconds: int = DEFAULT_STALL_TIMEOUT,
         close_driver_on_finish: bool = True,
         environment_mode: str = DEFAULT_ENVIRONMENT_MODE,
     ) -> None:

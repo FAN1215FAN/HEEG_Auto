@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from heeg_auto.config.settings import CASES_DIR, DEFAULT_ENVIRONMENT_MODE
+from heeg_auto.config.settings import CASES_DIR, DEFAULT_ENVIRONMENT_MODE, DEFAULT_STALL_TIMEOUT
 
 SUITE_SUPPORT_FILE_NAMES = {"suite_setup.yaml", "suite_cleanup.yaml"}
 DIRECTORY_SUPPORT_FILE_NAMES = {"init.yaml", "cleanup.yaml"}
@@ -36,7 +36,7 @@ class DirectoryLifecycleManager:
     def __init__(
         self,
         runner,
-        stall_timeout_seconds: int = 60,
+        stall_timeout_seconds: int = DEFAULT_STALL_TIMEOUT,
         environment_mode: str = DEFAULT_ENVIRONMENT_MODE,
         case_root: Path | None = None,
     ) -> None:

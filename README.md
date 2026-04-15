@@ -50,7 +50,7 @@ python -m pytest --run-formal --run-ui --environment-mode reset_per_directory -s
 ## 正式目录
 
 - `src/heeg_auto/assets/`：正式窗口、元素、断言资产
-- `src/heeg_auto/cases/`：正式步骤式 case
+- `src/heeg_auto/cases/`：正式步骤式 case，按软件当前大分类区分组，后续允许继续新增同级分类和下级文件夹
 - `src/heeg_auto/runner/`：正式 case 执行链路
 - `src/heeg_auto/core/`：底层驱动、动作、报告等基础能力
 - `tests/`：治理测试和 smoke 测试
@@ -73,3 +73,6 @@ python -m pytest --run-formal --run-ui --environment-mode reset_per_directory -s
 1. 主文档后续采用持续更新，不再压缩式重写。
 2. `docs` 现已按“主线 / 资产规范 / 治理 / 模板”分组。
 3. 图形和波形类断言仍是当前最需要继续建设的能力。
+4. 每次结构、脚本或正式口径调整，都会同步更新主文档进度和治理记录。
+5. `cases` 顶层目录表示当前软件设想的大分类区，不是封闭列表，后续可以继续增加新的同级分类。
+6. 默认 `stall-timeout` 已收紧到 `20` 秒；出现 UI 无进展或异常等待时，会优先快速失败并记录报错，不再长时间挂起当前 case。

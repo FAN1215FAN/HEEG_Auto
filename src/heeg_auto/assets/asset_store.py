@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-DEFAULT_ASSET_ROOT = Path(__file__).resolve().parent / "assets"
+DEFAULT_ASSET_ROOT = Path(__file__).resolve().parent
 _IGNORED_TEXT_VALUES = {"", "Property does not exist", "None"}
 
 WINDOW_KEY_ALIASES = {

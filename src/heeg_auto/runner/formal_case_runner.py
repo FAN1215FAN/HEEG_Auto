@@ -9,6 +9,7 @@ from time import monotonic
 from typing import Any
 
 from heeg_auto.config.settings import APP_PATH, PROJECT_ROOT
+from heeg_auto.config.settings import DEFAULT_STALL_TIMEOUT
 from heeg_auto.core.actions import ActionExecutor
 from heeg_auto.core.driver import UIADriver
 from heeg_auto.core.logger import build_logger
@@ -20,7 +21,7 @@ from heeg_auto.runner.step_case_loader import StepCaseLoader
 class _ProgressWatchdog:
     driver: UIADriver
     logger: Any
-    timeout_seconds: int = 60
+    timeout_seconds: int = DEFAULT_STALL_TIMEOUT
 
     def __post_init__(self) -> None:
         self._lock = threading.Lock()
@@ -70,7 +71,7 @@ class FormalCaseRunner:
         case_path: str | Path,
         raise_on_failure: bool = True,
         close_after_run: bool = True,
-        stall_timeout_seconds: int = 60,
+        stall_timeout_seconds: int = DEFAULT_STALL_TIMEOUT,
     ) -> dict[str, Any]:
         case_data = self.step_case_loader.load(case_path)
         case_data.setdefault("module_chain_labels", ["步骤式"])

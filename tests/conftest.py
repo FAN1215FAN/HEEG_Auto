@@ -8,7 +8,7 @@ import _pytest.helpconfig as pytest_helpconfig
 import pytest
 from _pytest.config import ExitCode
 
-from heeg_auto.config.settings import ensure_artifact_dirs
+from heeg_auto.config.settings import DEFAULT_STALL_TIMEOUT, ensure_artifact_dirs
 from heeg_auto.core.driver import UIADriver
 from heeg_auto.core.logger import build_logger
 from tests.support.case_catalog import CASE_DIR_FILTER_ENV, CASE_FILE_FILTER_ENV, CASE_FILTER_ENV
@@ -220,7 +220,7 @@ MINIMAL_HELP_LINES = [
     "  --case-dir 目录1,目录2      按业务目录筛选正式 case",
     "  --case-file 文件路径        按单个正式 case YAML 文件执行",
     "  --case-id 编号1,编号2       按 case 编号筛选正式 case",
-    "  --stall-timeout 秒数        UI 无进展超时秒数，默认 60",
+    f"  --stall-timeout 秒数        UI 无进展超时秒数，默认 {DEFAULT_STALL_TIMEOUT}",
     "  --helpfull                 显示 pytest 原生完整帮助",
     "",
     "常用命令：",
@@ -436,8 +436,8 @@ def pytest_addoption(parser):
     project_group.addoption(
         "--stall-timeout",
         action="store",
-        default="60",
-        help="真实 UI 执行无进展超时秒数，默认 60 秒",
+        default=str(DEFAULT_STALL_TIMEOUT),
+        help=f"真实 UI 执行无进展超时秒数，默认 {DEFAULT_STALL_TIMEOUT} 秒",
     )
     project_group.addoption(
         "--case-id",
