@@ -1,0 +1,19 @@
+窗口资产:
+- 窗口标识: window.main.record_software
+  资产类型: 窗口
+  中文名称: 数字脑电采集记录软件窗口
+  所属窗口: 数字脑电采集记录软件窗口
+  ControlType: Window
+  Name: 数字脑电采集记录软件
+  ClassName: Window
+  是否唯一: 是
+  用途说明: 数字脑电采集记录软件主窗口
+- 窗口标识: window.main.patient_home
+  资产类型: 窗口
+  中文名称: 患者主界面
+  所属窗口: 患者主界面
+  ControlType: Window
+  Name: 数字脑电采集记录软件
+  ClassName: Window
+  是否唯一: 是
+  用途说明: 患者主界面与数字脑电采集记录软件主窗口共用同一顶层窗口

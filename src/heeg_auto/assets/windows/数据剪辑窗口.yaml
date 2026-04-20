@@ -1,0 +1,10 @@
+窗口资产:
+- 窗口标识: window.history.data_clip
+  资产类型: 窗口
+  中文名称: 数据剪辑窗口
+  所属窗口: 数据剪辑窗口
+  ControlType: Window
+  Name: 数据剪辑
+  ClassName: Window
+  是否唯一: 是
+  用途说明: 历史回放的数据剪辑窗口

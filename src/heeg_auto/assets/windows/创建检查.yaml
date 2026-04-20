@@ -1,0 +1,9 @@
+窗口资产:
+- 窗口标识: dialog.exam.create
+  资产类型: 窗口
+  中文名称: 创建检查
+  所属窗口: 创建检查
+  ControlType: Window
+  Name: 创建检查
+  ClassName: Window
+  是否唯一: 是

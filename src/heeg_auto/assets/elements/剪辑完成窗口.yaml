@@ -1,0 +1,20 @@
+元素资产:
+- 元素标识: dialog.clip_complete.scrollviewer_003
+  资产类型: 元素
+  中文名称: 剪辑完成
+  所属窗口: 剪辑完成窗口
+  ControlType: Pane
+  ClassName: ScrollViewer
+  是否唯一: 是
+  用途说明: 剪辑完成窗口参数表导入资产
+  Name: 剪辑完成
+- 元素标识: dialog.clip_complete.okbutton
+  资产类型: 元素
+  中文名称: 确定
+  所属窗口: 剪辑完成窗口
+  ControlType: Button
+  ClassName: Button
+  是否唯一: 是
+  用途说明: 剪辑完成窗口参数表导入资产
+  AutomationId: OKButton
+  Name: 确定

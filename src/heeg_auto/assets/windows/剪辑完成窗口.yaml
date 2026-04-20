@@ -1,0 +1,11 @@
+窗口资产:
+- 窗口标识: window.history.clip_complete
+  资产类型: 窗口
+  中文名称: 剪辑完成窗口
+  所属窗口: 剪辑完成窗口
+  AutomationId: MessageBoxTip
+  ControlType: Window
+  Name:
+  ClassName: Window
+  是否唯一: 是
+  用途说明: 剪辑完成确认弹窗

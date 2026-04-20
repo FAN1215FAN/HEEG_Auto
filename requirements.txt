@@ -1,0 +1,7 @@
+﻿pywinauto
+comtypes
+Pillow
+PyYAML
+pytest
+pytest-html
+python-docx

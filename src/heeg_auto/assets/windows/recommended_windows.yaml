@@ -1,0 +1,20 @@
+窗口资产:
+  - 窗口标识: main.patient_list
+    资产类型: 窗口
+    中文名称: 患者列表
+    所属窗口: 数字脑电采集记录软件
+    ControlType: Window
+    Name: 数字脑电采集记录软件
+    ClassName: Window
+    是否唯一: 是
+    用途说明: 推荐 case 写法中的患者列表窗口
+
+  - 窗口标识: dialog.create_patient.recommended
+    资产类型: 窗口
+    中文名称: 创建患者
+    所属窗口: 创建患者
+    ControlType: Window
+    Name: 创建患者
+    ClassName: Window
+    是否唯一: 是
+    用途说明: 推荐 case 写法中的创建患者窗口
