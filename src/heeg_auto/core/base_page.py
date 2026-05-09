@@ -86,8 +86,23 @@ class BasePage:
         candidates = [criteria]
         control_type = criteria.get("control_type")
         auto_id = criteria.get("auto_id")
+        title = criteria.get("title")
+        class_name = criteria.get("class_name")
+        if auto_id:
+            if title:
+                alt = dict(criteria)
+                alt.pop("title", None)
+                candidates.append(alt)
+                if class_name:
+                    alt = dict(alt)
+                    alt.pop("class_name", None)
+                    candidates.append(alt)
+            elif class_name:
+                alt = dict(criteria)
+                alt.pop("class_name", None)
+                candidates.append(alt)
         if not control_type:
-            return candidates
+            return BasePage._dedupe_criteria_candidates(candidates)
 
         normalized = str(control_type).strip().lower()
         if normalized in {"edit", "textbox", "text box"} and auto_id:
@@ -99,7 +114,19 @@ class BasePage:
             alt = dict(criteria)
             alt.pop("control_type", None)
             candidates.append(alt)
-        return candidates
+        return BasePage._dedupe_criteria_candidates(candidates)
+
+    @staticmethod
+    def _dedupe_criteria_candidates(candidates: list[dict]) -> list[dict]:
+        deduped = []
+        seen = set()
+        for candidate in candidates:
+            marker = tuple(sorted(candidate.items()))
+            if marker in seen:
+                continue
+            seen.add(marker)
+            deduped.append(candidate)
+        return deduped
 
     @staticmethod
     def _matches_candidate(wrapper, candidate: dict) -> bool:
@@ -133,6 +160,19 @@ class BasePage:
                 continue
         return None
 
+    def _find_in_top_level_windows(self, candidate: dict):
+        for root in self._root_candidates({"page": "main"}):
+            if root is None:
+                continue
+            try:
+                if self._matches_candidate(root, candidate):
+                    if self.logger is not None:
+                        self.logger.info("Top-level window match for %s", candidate)
+                    return root
+            except Exception:
+                continue
+        return None
+
     def find(self, locator: dict, timeout: int = DEFAULT_TIMEOUT):
         criteria = self._criteria(locator)
         deadline = time.time() + timeout
@@ -141,6 +181,9 @@ class BasePage:
         while time.time() < deadline:
             for candidate in self._criteria_candidates(criteria):
                 if candidate.get("control_type") == "Window":
+                    wrapper = self._find_in_top_level_windows(candidate)
+                    if wrapper is not None:
+                        return wrapper
                     try:
                         if self.driver.app is not None:
                             window_spec = self.driver.app.window(**candidate)

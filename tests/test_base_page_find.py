@@ -186,6 +186,28 @@ def test_find_scans_all_application_top_level_windows_for_controls():
     assert wrapper.element_info.automation_id == 'OKButton'
 
 
+def test_find_relaxes_title_when_automation_id_is_available():
+    class _StrictRoot(_FakeRoot):
+        def child_window(self, **criteria):
+            self.calls.append(criteria)
+            if criteria == {'auto_id': 'OKButton', 'control_type': 'Button', 'class_name': 'Button'}:
+                return type('Spec', (), {'wrapper_object': lambda self: _FakeWrapper(automation_id='OKButton', control_type='Button')})()
+            raise RuntimeError('strict title mismatch')
+
+    driver = _FakeDriver()
+    root = _StrictRoot('popup')
+    page = BasePage(driver=driver, logger=None, root=root)
+
+    wrapper = page.find(
+        {'automation_id': 'OKButton', 'control_type': 'Button', 'title': '确定', 'class_name': 'Button'},
+        timeout=1,
+    )
+
+    assert wrapper.element_info.automation_id == 'OKButton'
+    assert root.calls[0] == {'auto_id': 'OKButton', 'control_type': 'Button', 'title': '确定', 'class_name': 'Button'}
+    assert {'auto_id': 'OKButton', 'control_type': 'Button', 'class_name': 'Button'} in root.calls
+
+
 class _FakeDialogPage:
     def __init__(self) -> None:
         self.root = type("Root", (), {"handle": 123})()

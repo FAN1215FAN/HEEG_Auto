@@ -1,5 +1,15 @@
 # 变更记录
 
+## 2026-05-09
+
+### UIA 弹窗与控件定位容错优化
+
+- 优化 `src/heeg_auto/core/base_page.py` 的控件查找策略：当资产提供稳定 `AutomationId` 时，定位条件按“先严格、后放宽”的顺序尝试，避免控件 `Name` 或 `ClassName` 暴露不稳定导致长时间查找失败。
+- 优化 `src/heeg_auto/core/actions.py` 的窗口作用域查找：非主窗口查找失败时快速回退到全局顶层窗口查找，避免单个窗口作用域耗尽默认 `20` 秒 watchdog。
+- 对仅有 `AutomationId`、没有稳定标题的弹窗窗口，例如 `MessageBoxTip`，点击其内部带 `AutomationId` 的按钮时直接走全局查找，提升“剪辑完成 -> 确定”这类确认弹窗的稳定性。
+- 补充 `tests/test_base_page_find.py` 和 `tests/test_actions_interaction.py` 回归测试，覆盖 `AutomationId` 放宽匹配、弹窗窗口作用域失败回退、仅 AutomationId 弹窗的全局按钮查找。
+- 已验证 `python -m pytest -q` 通过，且 `python -m pytest --case-id 历史回放剪辑_01 -s` 在默认 `20` 秒 watchdog 下通过。
+
 ## 2026-04-20
 
 ### 历史回放剪辑时长断言收敛

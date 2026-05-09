@@ -53,6 +53,7 @@ ACTION_ALIASES = {
 }
 
 _REUSE_SESSION_VALUES = {"自动复用", "reuse"}
+_WINDOW_SCOPE_LOOKUP_TIMEOUT = 3
 _POSITION_MODE_ALIASES = {
     "window_ratio": "window_ratio",
     "窗口比例": "window_ratio",
@@ -444,11 +445,33 @@ class ActionExecutor:
         window_locator = self.resolve_target(window, default_page="main")
         if self._is_main_window_locator(window_locator):
             return self.main_page
+        if self._should_use_global_popup_lookup(window_locator, locator):
+            self.logger.info(
+                "Use global lookup for popup control %s because window %s is automation-id only.",
+                locator,
+                window_locator,
+            )
+            return self.main_page
         try:
-            wrapper = self.main_page.find(window_locator)
-        except Exception:
+            wrapper = self.main_page.find(window_locator, timeout=_WINDOW_SCOPE_LOOKUP_TIMEOUT)
+        except Exception as exc:
+            self.logger.warning(
+                "Window-scoped lookup skipped after %ss for %s, falling back to global lookup: %s",
+                _WINDOW_SCOPE_LOOKUP_TIMEOUT,
+                window_locator,
+                exc,
+            )
             return self.main_page
         return BasePage(driver=self.driver, logger=self.logger, root=wrapper)
+
+    @staticmethod
+    def _should_use_global_popup_lookup(window_locator: dict, target_locator: dict) -> bool:
+        return bool(
+            window_locator.get("automation_id")
+            and window_locator.get("control_type") == "Window"
+            and not window_locator.get("title")
+            and target_locator.get("automation_id")
+        )
 
     def _is_main_window_locator(self, locator: dict) -> bool:
         title = locator.get("title", "")

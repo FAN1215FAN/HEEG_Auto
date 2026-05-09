@@ -69,6 +69,62 @@ def test_action_executor_scopes_target_lookup_to_explicit_window(monkeypatch):
     assert captured["locator"]["title"] == "数据剪辑"
 
 
+def test_action_executor_falls_back_to_global_lookup_when_window_scope_misses(monkeypatch):
+    executor = ActionExecutor(driver=_Driver(), logger=_Logger())
+
+    def fake_find(locator, timeout=30):
+        if locator.get("control_type") == "Window":
+            raise RuntimeError("popup not visible through scoped lookup")
+        raise AssertionError("only window scoping should be attempted directly")
+
+    executor.main_page.find = fake_find
+    captured = {}
+
+    original_click = BasePage.click
+
+    def fake_click(self, locator):
+        captured["root"] = getattr(self, "root", None)
+        captured["locator"] = locator
+
+    monkeypatch.setattr(BasePage, "click", fake_click)
+    try:
+        executor.click(
+            target={"automation_id": "OKButton", "title": "确定", "control_type": "Button", "class_name": "Button"},
+            window={"automation_id": "MessageBoxTip", "control_type": "Window", "class_name": "Window"},
+        )
+    finally:
+        monkeypatch.setattr(BasePage, "click", original_click)
+
+    assert captured["root"] is None
+    assert captured["locator"]["automation_id"] == "OKButton"
+
+
+def test_action_executor_uses_global_lookup_for_automation_id_only_popup(monkeypatch):
+    executor = ActionExecutor(driver=_Driver(), logger=_Logger())
+    find_calls = []
+    executor.main_page.find = lambda *args, **kwargs: find_calls.append((args, kwargs))
+    captured = {}
+
+    original_click = BasePage.click
+
+    def fake_click(self, locator):
+        captured["root"] = getattr(self, "root", None)
+        captured["locator"] = locator
+
+    monkeypatch.setattr(BasePage, "click", fake_click)
+    try:
+        executor.click(
+            target={"automation_id": "OKButton", "title": "确定", "control_type": "Button", "class_name": "Button"},
+            window={"automation_id": "MessageBoxTip", "control_type": "Window", "class_name": "Window"},
+        )
+    finally:
+        monkeypatch.setattr(BasePage, "click", original_click)
+
+    assert find_calls == []
+    assert captured["root"] is None
+    assert captured["locator"]["automation_id"] == "OKButton"
+
+
 def test_action_executor_clicks_timeline_time_on_history_replay_window():
     executor = ActionExecutor(driver=_Driver(), logger=_Logger())
     history_wrapper = _Wrapper("历史回放", (100, 50, 900, 450))
